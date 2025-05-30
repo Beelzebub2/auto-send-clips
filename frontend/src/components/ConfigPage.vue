@@ -2,7 +2,6 @@
 import { ref, onMounted } from 'vue'
 import { Settings, Globe, Folder, FolderOpen, TestTube, Save } from 'lucide-vue-next'
 import { GetConfig, SaveConfig, UpdateMonitorPath, SelectFolder } from '../../wailsjs/go/main/App'
-import { EventsEmit } from '../../wailsjs/runtime/runtime'
 
 const config = ref({
   webhookURL: '',
@@ -42,13 +41,10 @@ const saveConfig = async () => {
       webhook_url: config.value.webhookURL,
       monitor_path: config.value.monitorPath,
       max_file_size: config.value.maxFileSize,
-      check_interval: config.value.checkInterval
-    }
+      check_interval: config.value.checkInterval    }
     
     await SaveConfig(configToSave)
-    EventsEmit('config-saved')
   } catch (err) {
-    EventsEmit('config-error', { message: err.message })
     error.value = 'Failed to save configuration: ' + err.message
   } finally {
     isSaving.value = false
@@ -72,7 +68,6 @@ const selectFolder = async () => {
 const updateMonitorPath = async () => {
   try {
     await UpdateMonitorPath(config.value.monitorPath)
-    EventsEmit('config-saved')
   } catch (err) {
     error.value = 'Failed to update monitor path: ' + err.message
   }
@@ -102,15 +97,14 @@ const testWebhook = async () => {
       body: JSON.stringify({
         content: 'Test message from AutoClipSend ✅'
       })
-    })
-    
+    })    
     if (response.ok) {
-      EventsEmit('webhook-test-success')
+      // Simple success feedback
     } else {
-      EventsEmit('webhook-test-error', { message: 'HTTP ' + response.status })
+      error.value = 'Webhook test failed: HTTP ' + response.status
     }
   } catch (err) {
-    EventsEmit('webhook-test-error', { message: err.message })
+    error.value = 'Webhook test failed: ' + err.message
   }
 }
 
@@ -124,8 +118,7 @@ onMounted(() => {
       <h2>Configuration Settings</h2>
     </div>    <div class="error-message" v-if="error">
       {{ error }}
-    </div>    <div class="config-form" v-if="!isLoading">
-      <div class="config-grid">
+    </div>    <div class="config-form" v-if="!isLoading">      <div class="config-grid">
         <!-- Left Column - Main Settings -->
         <div class="config-column main-settings">
           <!-- Discord Configuration -->
@@ -153,9 +146,7 @@ onMounted(() => {
                 Get your webhook URL from Discord: Server Settings → Integrations → Webhooks
               </p>
             </div>
-          </div>
-
-          <!-- Monitor Configuration -->
+          </div>          <!-- File Monitoring (moved back from right column) -->
           <div class="config-section primary">
             <h3>
               <Folder :size="18" />
@@ -186,10 +177,9 @@ onMounted(() => {
               </p>
             </div>
           </div>
-        </div>
-
-        <!-- Right Column - Advanced Settings -->
-        <div class="config-column advanced-settings">
+        </div>        <!-- Right Column - Advanced Settings -->
+        <div class="config-column monitoring-settings">
+          <!-- Advanced Settings -->
           <div class="config-section secondary">
             <h3>
               <Settings :size="18" />
@@ -224,13 +214,12 @@ onMounted(() => {
               <p class="form-help">
                 How often to check for new files
               </p>
-            </div>
-          </div>
+            </div>          </div>
         </div>
       </div>
-
-      <!-- Save Button at Bottom -->
-      <div class="form-actions">
+      
+      <!-- Save Button at the bottom -->
+      <div class="form-actions-bottom">
         <button 
           @click="saveConfig" 
           class="save-button" 
@@ -238,7 +227,7 @@ onMounted(() => {
         >
           <Save :size="18" />
           <span v-if="isSaving">Saving...</span>
-          <span v-else>Save All Settings</span>
+          <span v-else>Save Configuration</span>
         </button>
       </div>
     </div>
@@ -314,6 +303,18 @@ onMounted(() => {
 
 .advanced-settings {
   min-width: 0;
+}
+
+.monitoring-settings {
+  min-width: 0;
+}
+
+.form-actions-bottom {
+  display: flex;
+  justify-content: center;
+  padding: 1.5rem 0;
+  margin-top: 1rem;
+  border-top: 1px solid rgba(255, 140, 0, 0.2);
 }
 
 .config-section {
@@ -453,14 +454,6 @@ onMounted(() => {
   line-height: 1.3;
 }
 
-.form-actions {
-  display: flex;
-  justify-content: center;
-  padding-top: 0.5rem;
-  margin-top: 1rem;
-  flex-shrink: 0;
-}
-
 .save-button {
   padding: 0.8rem 1.5rem;
   background: linear-gradient(135deg, #ff8c00 0%, #e67e22 100%);
@@ -574,14 +567,14 @@ onMounted(() => {
   .config-section {
     padding: 1rem;
   }
-  
-  .input-group {
+    .input-group {
     flex-direction: column;
     gap: 0.5rem;
   }
   
-  .form-actions {
-    padding-top: 0.5rem;
+  .form-actions-bottom {
+    padding: 1rem 0;
+    margin-top: 0.5rem;
   }
   
   .save-button {

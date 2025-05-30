@@ -26,6 +26,8 @@ type App struct {
 	startTime           time.Time // Track when app started
 	isMonitoring        bool      // Track monitoring status
 	notificationHandler *NotificationHandler
+	videosSent          int // Track count of videos sent
+	audiosSent          int // Track count of audios sent
 }
 
 // AppStatus represents the current application status
@@ -33,7 +35,8 @@ type AppStatus struct {
 	Uptime       string `json:"uptime"`
 	IsMonitoring bool   `json:"isMonitoring"`
 	MonitorPath  string `json:"monitorPath"`
-	LastActivity string `json:"lastActivity"`
+	VideosSent   int    `json:"videosSent"`
+	AudiosSent   int    `json:"audiosSent"`
 }
 
 // NewApp creates a new App application struct
@@ -253,9 +256,20 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 			}
 		}()
 	}
-
 	// Send to Discord
-	return a.sendFileToDiscord(finalPath, customName)
+	err = a.sendFileToDiscord(finalPath, customName)
+	if err != nil {
+		return err
+	}
+
+	// Increment counters on successful send
+	if audioOnly {
+		a.audiosSent++
+	} else {
+		a.videosSent++
+	}
+
+	return nil
 }
 
 // sendFileToDiscord sends the file to Discord via webhook
@@ -330,7 +344,8 @@ func (a *App) GetAppStatus() AppStatus {
 		Uptime:       formatDuration(uptime),
 		IsMonitoring: a.isMonitoring,
 		MonitorPath:  a.config.MonitorPath,
-		LastActivity: "Running", // You can track last activity here
+		VideosSent:   a.videosSent,
+		AudiosSent:   a.audiosSent,
 	}
 }
 

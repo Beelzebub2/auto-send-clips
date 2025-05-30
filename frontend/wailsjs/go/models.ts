@@ -4,7 +4,8 @@ export namespace main {
 	    uptime: string;
 	    isMonitoring: boolean;
 	    monitorPath: string;
-	    lastActivity: string;
+	    videosSent: number;
+	    audiosSent: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppStatus(source);
@@ -15,7 +16,8 @@ export namespace main {
 	        this.uptime = source["uptime"];
 	        this.isMonitoring = source["isMonitoring"];
 	        this.monitorPath = source["monitorPath"];
-	        this.lastActivity = source["lastActivity"];
+	        this.videosSent = source["videosSent"];
+	        this.audiosSent = source["audiosSent"];
 	    }
 	}
 	export class Config {

@@ -2,13 +2,13 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Clock, Folder, Activity } from 'lucide-vue-next'
 import { GetAppStatus, StartMonitoring, StopMonitoring } from '../../wailsjs/go/main/App'
-import { EventsEmit } from '../../wailsjs/runtime/runtime'
 
 const status = ref({
   uptime: '0s',
   isMonitoring: false,
   monitorPath: '',
-  lastActivity: 'Initializing...'
+  videosSent: 0,
+  audiosSent: 0
 })
 
 const isLoading = ref(true)
@@ -32,10 +32,8 @@ const toggleMonitoring = async () => {
   try {
     if (status.value.isMonitoring) {
       await StopMonitoring()
-      EventsEmit('monitoring-stopped')
     } else {
       await StartMonitoring()
-      EventsEmit('monitoring-started')
     }
     await loadStatus()
   } catch (err) {
@@ -111,15 +109,22 @@ onUnmounted(() => {
         <div class="card-content">
           <div class="monitor-path">{{ status.monitorPath || 'Not set' }}</div>
         </div>
-      </div>
-
-      <div class="status-card full-width">
+      </div>      <div class="status-card full-width">
         <div class="card-header">
-          <h3>Last Activity</h3>
+          <h3>Total Clips Sent</h3>
           <Activity :size="20" class="icon" />
         </div>
         <div class="card-content">
-          <div class="last-activity">{{ status.lastActivity }}</div>
+          <div class="clips-stats">
+            <div class="stat-item">
+              <span class="stat-label">Videos:</span>
+              <span class="stat-value">{{ status.videosSent }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Audios:</span>
+              <span class="stat-value">{{ status.audiosSent }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -361,15 +366,38 @@ onUnmounted(() => {
 }
 
 .monitor-path, .last-activity {
+  color: #ccc;
+  font-family: 'Courier New', monospace;
   font-size: 0.85rem;
-  color: #cccccc;
   word-break: break-all;
-  background: rgba(0, 0, 0, 0.2);
-  padding: 0.6rem;
-  border-radius: 6px;
-  border-left: 3px solid #ff8c00;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.clips-stats {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.stat-label {
+  color: #999;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  color: #ff8c00;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
 }
 
 .loading-spinner {

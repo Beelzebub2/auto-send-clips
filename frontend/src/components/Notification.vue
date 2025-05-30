@@ -21,14 +21,10 @@ onMounted(() => {
   EventsOn('newVideoDetected', (data) => {
     debugMessage.value = `Received newVideoDetected: ${data?.fileName || 'unknown'}`
     console.log('Notification: New video detected event received:', data)
-    if (data) {
-      videoData.value = data
+    if (data) {      videoData.value = data
       customName.value = data.fileName || ''
       showNotification.value = true
       console.log('Showing in-app notification modal')
-      
-      // Emit event for toast notification
-      EventsEmit('video-detected', data)
     }
   })
   
@@ -60,13 +56,9 @@ async function sendToDiscord() {
   if (!videoData.value.filePath) return
   
   sending.value = true
-  try {
-    // Import the SendToDiscord method dynamically
+  try {    // Import the SendToDiscord method dynamically
     const { SendToDiscord } = await import('../../wailsjs/go/main/App')
     await SendToDiscord(videoData.value.filePath, customName.value, audioOnly.value)
-    
-    // Emit success event for toast notification
-    EventsEmit('video-sent', { fileName: customName.value || videoData.value.fileName })
     
     closeNotification()
     debugMessage.value = 'File sent to Discord successfully'
