@@ -40,11 +40,6 @@ func (n *NotificationApp) GetFileInfo() map[string]string {
 	}
 }
 
-// SendToDiscord sends the file to Discord via the main app
-func (n *NotificationApp) SendToDiscord(customName string, audioOnly bool) error {
-	return n.mainApp.SendToDiscord(n.filePath, customName, audioOnly)
-}
-
 // CloseNotification closes the notification window
 func (n *NotificationApp) CloseNotification() {
 	runtime.Quit(n.ctx)

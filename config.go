@@ -6,6 +6,20 @@ import (
 	"path/filepath"
 )
 
+// Config holds application configuration
+// Moved here from app.go for global access
+// If you want to keep it in a separate file, ensure all files import it from here
+// If you want to move it to a new file, let me know
+
+// Config holds application configuration
+// (Moved from app.go)
+type Config struct {
+	WebhookURL    string `json:"webhook_url"`
+	MonitorPath   string `json:"monitor_path"`
+	MaxFileSize   int64  `json:"max_file_size"`  // in bytes
+	CheckInterval int    `json:"check_interval"` // in seconds
+}
+
 // ConfigManager handles saving and loading configuration
 type ConfigManager struct {
 	configPath string
