@@ -1,0 +1,52 @@
+name: Build Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-build:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+
+      - name: Test build application
+        run: wails build -platform windows/amd64
+        shell: cmd
+
+      - name: Check if binary was created
+        run: |
+          if exist "build\bin\autoclipsend.exe" (
+            echo "✅ Build successful - binary created"
+          ) else (
+            echo "❌ Build failed - binary not found"
+            exit 1
+          )
+        shell: cmd

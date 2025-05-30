@@ -19,6 +19,9 @@ var assets embed.FS
 //go:embed icon.ico
 var icon []byte
 
+// Version can be set at build time using -ldflags "-X main.version=v1.0.0"
+var version = "dev"
+
 // main is the entry point of the application
 func main() {
 	// Prevent multiple instances using a named mutex

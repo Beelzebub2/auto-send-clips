@@ -12,6 +12,8 @@ export function GetFileSize(arg1:string):Promise<number>;
 
 export function GetUptime():Promise<string>;
 
+export function GetVersion():Promise<string>;
+
 export function HandleWindowClose():Promise<void>;
 
 export function InitTray():Promise<void>;

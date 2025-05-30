@@ -6,6 +6,7 @@ export namespace main {
 	    monitorPath: string;
 	    videosSent: number;
 	    audiosSent: number;
+	    version: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppStatus(source);
@@ -18,6 +19,7 @@ export namespace main {
 	        this.monitorPath = source["monitorPath"];
 	        this.videosSent = source["videosSent"];
 	        this.audiosSent = source["audiosSent"];
+	        this.version = source["version"];
 	    }
 	}
 	export class Config {

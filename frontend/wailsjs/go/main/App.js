@@ -22,6 +22,10 @@ export function GetUptime() {
   return window['go']['main']['App']['GetUptime']();
 }
 
+export function GetVersion() {
+  return window['go']['main']['App']['GetVersion']();
+}
+
 export function HandleWindowClose() {
   return window['go']['main']['App']['HandleWindowClose']();
 }

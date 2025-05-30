@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+
+      - name: Build application with version
+        run: wails build -platform windows/amd64 -ldflags "-X main.version=${{ github.event.inputs.version }}"
+        shell: cmd
+
+      - name: Verify build
+        run: |
+          if exist "build\bin\autoclipsend.exe" (
+            echo "✅ Build successful - binary created"
+            dir "build\bin\autoclipsend.exe"
+          ) else (
+            echo "❌ Build failed - binary not found"
+            exit 1
+          )
+        shell: cmd
+
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          release_name: AutoClipSend ${{ github.event.inputs.version }}
+          body: |
+            ## AutoClipSend ${{ github.event.inputs.version }}
+            
+            ### 🎬 Automatic Video File Monitor & Discord Sender
+            
+            **Features:**
+            - Monitors folder for new video files
+            - Sends files to Discord via webhook
+            - Custom notification system
+            - Audio extraction option
+            - Automatic file compression
+            
+            ### 📋 Prerequisites
+            - Windows 10/11
+            - FFmpeg (for video processing)
+            - Discord webhook URL
+            
+            ### 🚀 Quick Start
+            1. Download `autoclipsend.exe` below
+            2. Install FFmpeg and add to PATH
+            3. Run the application
+            4. Configure your Discord webhook
+            5. Set monitor folder path
+            
+            ### 📁 Default Monitor Path
+            `E:\Highlights\Clips\Screen Recording`
+            
+            ---
+            **Full documentation:** [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)
+          draft: false
+          prerelease: false
+
+      - name: Upload Windows executable
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: build/bin/autoclipsend.exe
+          asset_name: autoclipsend.exe
+          asset_content_type: application/octet-stream

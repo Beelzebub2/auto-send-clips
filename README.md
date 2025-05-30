@@ -22,6 +22,13 @@ A Golang Wails application that automatically monitors a folder for new video fi
 
 ## Installation
 
+### Option 1: Download Pre-built Release (Recommended)
+1. Go to the [Releases](../../releases) page
+2. Download the latest `autoclipsend.exe`
+3. Place it in a folder of your choice
+4. Run the executable directly
+
+### Option 2: Build from Source
 1. **Clone or download** this project to your local machine
 2. **Open Command Prompt** and navigate to the project directory
 3. **Run the build script**:
@@ -29,6 +36,32 @@ A Golang Wails application that automatically monitors a folder for new video fi
    build.bat
    ```
 4. The executable will be created in `build\bin\autoclipsend.exe`
+
+## Releases
+
+### 📦 Download Pre-built Executable
+
+You can download the latest pre-built executable from the [Releases](../../releases) page instead of building from source:
+
+1. Go to the [Releases](../../releases) page
+2. Download the latest `autoclipsend.exe`
+3. No build process required - just run the executable!
+
+### 🚀 Creating Releases
+
+Releases are automatically built using GitHub Actions when triggered manually:
+
+1. Go to the **Actions** tab in the repository
+2. Select **"Release"** workflow
+3. Click **"Run workflow"**
+4. Enter the version (e.g., `v1.0.0`)
+5. The workflow will build the executable and create a new release
+
+The release workflow:
+- Builds the Windows executable with the specified version
+- Creates a GitHub release with the version tag
+- Uploads the executable as a release asset
+- Includes installation and usage instructions
 
 ## Setup
 

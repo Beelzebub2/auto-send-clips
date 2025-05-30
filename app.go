@@ -37,6 +37,7 @@ type AppStatus struct {
 	MonitorPath  string `json:"monitorPath"`
 	VideosSent   int    `json:"videosSent"`
 	AudiosSent   int    `json:"audiosSent"`
+	Version      string `json:"version"`
 }
 
 // NewApp creates a new App application struct
@@ -337,6 +338,11 @@ func (a *App) GetUptime() string {
 	return time.Since(a.startTime).String()
 }
 
+// GetVersion returns the application version
+func (a *App) GetVersion() string {
+	return version
+}
+
 // GetAppStatus returns the current application status
 func (a *App) GetAppStatus() AppStatus {
 	uptime := time.Since(a.startTime)
@@ -346,6 +352,7 @@ func (a *App) GetAppStatus() AppStatus {
 		MonitorPath:  a.config.MonitorPath,
 		VideosSent:   a.videosSent,
 		AudiosSent:   a.audiosSent,
+		Version:      version,
 	}
 }
 
