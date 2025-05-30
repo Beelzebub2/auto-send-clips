@@ -6,6 +6,10 @@ export function BringToFront() {
   return window['go']['main']['App']['BringToFront']();
 }
 
+export function ExportData(arg1) {
+  return window['go']['main']['App']['ExportData'](arg1);
+}
+
 export function GetAppStatus() {
   return window['go']['main']['App']['GetAppStatus']();
 }
@@ -14,8 +18,20 @@ export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }
 
+export function GetDataPath() {
+  return window['go']['main']['App']['GetDataPath']();
+}
+
 export function GetFileSize(arg1) {
   return window['go']['main']['App']['GetFileSize'](arg1);
+}
+
+export function GetStatistics() {
+  return window['go']['main']['App']['GetStatistics']();
+}
+
+export function GetStorageInfo() {
+  return window['go']['main']['App']['GetStorageInfo']();
 }
 
 export function GetUptime() {
@@ -28,6 +44,10 @@ export function GetVersion() {
 
 export function HandleWindowClose() {
   return window['go']['main']['App']['HandleWindowClose']();
+}
+
+export function ImportData(arg1) {
+  return window['go']['main']['App']['ImportData'](arg1);
 }
 
 export function InitTray() {
@@ -50,6 +70,10 @@ export function MinimizeToTray() {
   return window['go']['main']['App']['MinimizeToTray']();
 }
 
+export function ResetSessionStats() {
+  return window['go']['main']['App']['ResetSessionStats']();
+}
+
 export function SaveConfig(arg1) {
   return window['go']['main']['App']['SaveConfig'](arg1);
 }
@@ -64,6 +88,10 @@ export function SendToDiscord(arg1, arg2, arg3) {
 
 export function SetWebhookURL(arg1) {
   return window['go']['main']['App']['SetWebhookURL'](arg1);
+}
+
+export function ShowCustomTrayMenu() {
+  return window['go']['main']['App']['ShowCustomTrayMenu']();
 }
 
 export function ShowFromTray() {

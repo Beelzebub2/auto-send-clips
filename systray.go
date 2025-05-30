@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/getlantern/systray"
+	"github.com/energye/systray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -32,35 +32,28 @@ func (a *App) onTrayReady() {
 	mStatus.Disable() // This item is just for display
 
 	systray.AddSeparator()
-
 	mShow := systray.AddMenuItem("Show Window", "Show the main window")
 
 	systray.AddSeparator()
 
 	mExit := systray.AddMenuItem("Exit", "Exit the application completely")
 
-	// Handle menu item clicks
-	go func() {
-		fmt.Println("Starting tray menu event handler")
-		for {
-			select {
-			case <-mShow.ClickedCh:
-				fmt.Println("Show window clicked in tray menu")
-				// Use ShowFromTray to properly restore the window
-				a.ShowFromTray()
+	// Set click handlers for menu items
+	mShow.Click(func() {
+		fmt.Println("Show window clicked in tray menu")
+		// Use ShowFromTray to properly restore the window
+		a.ShowFromTray()
+	})
 
-			case <-mExit.ClickedCh:
-				fmt.Println("Exit clicked in tray menu - shutting down app completely")
-				// First quit the systray
-				systray.Quit()
-				// Then quit the entire application
-				if a.ctx != nil {
-					runtime.Quit(a.ctx)
-				}
-				return
-			}
+	mExit.Click(func() {
+		fmt.Println("Exit clicked in tray menu - shutting down app completely")
+		// First quit the systray
+		systray.Quit()
+		// Then quit the entire application
+		if a.ctx != nil {
+			runtime.Quit(a.ctx)
 		}
-	}()
+	})
 }
 
 // onTrayExit is called when the tray is exiting
@@ -125,4 +118,19 @@ func (a *App) ToggleVisibility() {
 	} else {
 		a.ShowFromTray()
 	}
+}
+
+// ShowCustomTrayMenu shows a custom dark-themed context menu
+func (a *App) ShowCustomTrayMenu() {
+	if a.ctx == nil {
+		return
+	}
+
+	// Show a small custom menu window at a reasonable position
+	runtime.WindowShow(a.ctx)
+	runtime.WindowSetSize(a.ctx, 200, 150)
+	runtime.WindowSetAlwaysOnTop(a.ctx, true)
+
+	// Emit event to show custom tray menu in frontend
+	runtime.EventsEmit(a.ctx, "show-tray-menu")
 }

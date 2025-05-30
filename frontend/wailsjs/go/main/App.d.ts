@@ -4,17 +4,27 @@ import {main} from '../models';
 
 export function BringToFront():Promise<void>;
 
+export function ExportData(arg1:string):Promise<void>;
+
 export function GetAppStatus():Promise<main.AppStatus>;
 
 export function GetConfig():Promise<main.Config>;
 
+export function GetDataPath():Promise<string>;
+
 export function GetFileSize(arg1:string):Promise<number>;
+
+export function GetStatistics():Promise<main.Stats>;
+
+export function GetStorageInfo():Promise<Record<string, any>>;
 
 export function GetUptime():Promise<string>;
 
 export function GetVersion():Promise<string>;
 
 export function HandleWindowClose():Promise<void>;
+
+export function ImportData(arg1:string):Promise<void>;
 
 export function InitTray():Promise<void>;
 
@@ -26,6 +36,8 @@ export function Minimize():Promise<void>;
 
 export function MinimizeToTray():Promise<void>;
 
+export function ResetSessionStats():Promise<void>;
+
 export function SaveConfig(arg1:main.Config):Promise<void>;
 
 export function SelectFolder():Promise<string>;
@@ -33,6 +45,8 @@ export function SelectFolder():Promise<string>;
 export function SendToDiscord(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
 export function SetWebhookURL(arg1:string):Promise<void>;
+
+export function ShowCustomTrayMenu():Promise<void>;
 
 export function ShowFromTray():Promise<void>;
 

@@ -7,20 +7,19 @@ import (
 )
 
 // Config holds application configuration
-// Moved here from app.go for global access
-// If you want to keep it in a separate file, ensure all files import it from here
-// If you want to move it to a new file, let me know
-
-// Config holds application configuration
-// (Moved from app.go)
 type Config struct {
-	WebhookURL    string `json:"webhook_url"`
-	MonitorPath   string `json:"monitor_path"`
-	MaxFileSize   int64  `json:"max_file_size"`  // in bytes
-	CheckInterval int    `json:"check_interval"` // in seconds
+	WebhookURL        string `json:"webhook_url"`
+	DiscordWebhook    string `json:"discord_webhook"` // Alternative name for webhook
+	MonitorPath       string `json:"monitor_path"`
+	MaxFileSize       int64  `json:"max_file_size"`  // in MB
+	CheckInterval     int    `json:"check_interval"` // in seconds
+	AudioExtraction   bool   `json:"audio_extraction"`
+	ShowNotifications bool   `json:"show_notifications"`
+	AutoCompress      bool   `json:"auto_compress"`
 }
 
-// ConfigManager handles saving and loading configuration
+// ConfigManager handles saving and loading configuration (legacy)
+// Note: This is kept for backward compatibility, new code should use storage.go
 type ConfigManager struct {
 	configPath string
 }
@@ -46,15 +45,18 @@ func (cm *ConfigManager) SaveConfig(config *Config) error {
 	return os.WriteFile(cm.configPath, data, 0644)
 }
 
-// LoadConfig loads the configuration from file
+// LoadConfig loads the configuration from file (legacy)
 func (cm *ConfigManager) LoadConfig() (*Config, error) {
 	data, err := os.ReadFile(cm.configPath)
 	if err != nil {
 		// Return default config if file doesn't exist
 		return &Config{
-			MonitorPath:   `E:\Highlights\Clips\Screen Recording`,
-			MaxFileSize:   10 * 1024 * 1024, // 10MB
-			CheckInterval: 2,
+			MonitorPath:       `E:\Highlights\Clips\Screen Recording`,
+			MaxFileSize:       10, // 10MB
+			CheckInterval:     2,
+			AudioExtraction:   false,
+			ShowNotifications: true,
+			AutoCompress:      true,
 		}, nil
 	}
 

@@ -6,7 +6,7 @@ import { GetConfig, SaveConfig, UpdateMonitorPath, SelectFolder } from '../../wa
 const config = ref({
   webhookURL: '',
   monitorPath: '',
-  maxFileSize: 10485760, // 10MB in bytes
+  maxFileSize: 20, // Store in MB directly
   checkInterval: 2
 })
 
@@ -22,7 +22,7 @@ const loadConfig = async () => {
     config.value = {
       webhookURL: appConfig.webhook_url || '',
       monitorPath: appConfig.monitor_path || '',
-      maxFileSize: appConfig.max_file_size || 10485760,
+      maxFileSize: appConfig.max_file_size || 10, // Backend stores in MB now
       checkInterval: appConfig.check_interval || 2
     }
   } catch (err) {
@@ -71,14 +71,6 @@ const updateMonitorPath = async () => {
   } catch (err) {
     error.value = 'Failed to update monitor path: ' + err.message
   }
-}
-
-const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
 const testWebhook = async () => {
@@ -192,12 +184,11 @@ onMounted(() => {
                 v-model.number="config.maxFileSize"
                 type="number"
                 min="1"
-                max="100"
+                max="8000"
                 class="form-input"
-                @input="config.maxFileSize = $event.target.value * 1024 * 1024"
               />
               <p class="form-help">
-                Current: {{ formatFileSize(config.maxFileSize) }}
+                Maximum file size in megabytes (MB)
               </p>
             </div>
             

@@ -21,13 +21,12 @@ type App struct {
 	ctx                 context.Context
 	watcher             *fsnotify.Watcher
 	config              *Config
-	configManager       *ConfigManager
-	isVisible           bool      // Tracks if window is visible
-	startTime           time.Time // Track when app started
-	isMonitoring        bool      // Track monitoring status
+	configManager       *ConfigManager // Kept for backward compatibility
+	isVisible           bool           // Tracks if window is visible
+	startTime           time.Time      // Track when app started
+	isMonitoring        bool           // Track monitoring status
 	notificationHandler *NotificationHandler
-	videosSent          int // Track count of videos sent
-	audiosSent          int // Track count of audios sent
+	// Note: videosSent and audiosSent moved to persistent storage
 }
 
 // AppStatus represents the current application status
@@ -42,18 +41,19 @@ type AppStatus struct {
 
 // NewApp creates a new App application struct
 func NewApp() *App {
-	configManager := NewConfigManager()
-	config, err := configManager.LoadConfig()
-	if err != nil {
-		config = &Config{
-			MonitorPath:   `E:\Highlights\Clips\Screen Recording`,
-			MaxFileSize:   10 * 1024 * 1024, // 10MB
-			CheckInterval: 2,
-		}
+	// Initialize storage system first
+	if err := InitStorage(); err != nil {
+		fmt.Printf("Warning: Failed to initialize storage: %v\n", err)
 	}
 
+	// Load config from storage system
+	config := GetSettings()
+
+	// Keep config manager for backward compatibility
+	configManager := NewConfigManager()
+
 	app := &App{
-		config:        config,
+		config:        &config,
 		configManager: configManager,
 		startTime:     time.Now(),
 		isMonitoring:  false,
@@ -243,7 +243,7 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 		return fmt.Errorf("error getting final file info: %v", err)
 	}
 
-	if finalInfo.Size() > a.config.MaxFileSize {
+	if finalInfo.Size() > a.config.MaxFileSize*1024*1024 {
 		// Compress the file
 		compressedPath, err := a.compressFile(finalPath, audioOnly)
 		if err != nil {
@@ -256,18 +256,23 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 				os.Remove(finalPath)
 			}
 		}()
-	}
-	// Send to Discord
+	} // Send to Discord
 	err = a.sendFileToDiscord(finalPath, customName)
 	if err != nil {
 		return err
 	}
 
-	// Increment counters on successful send
-	if audioOnly {
-		a.audiosSent++
-	} else {
-		a.videosSent++
+	// Get file size for statistics
+	fileInfo, _ := os.Stat(finalPath)
+	fileSize := int64(0)
+	if fileInfo != nil {
+		fileSize = fileInfo.Size()
+	}
+
+	// Increment clip count in persistent storage
+	err = IncrementClipCount(fileSize)
+	if err != nil {
+		fmt.Printf("Warning: Failed to update clip statistics: %v\n", err)
 	}
 
 	return nil
@@ -346,12 +351,16 @@ func (a *App) GetVersion() string {
 // GetAppStatus returns the current application status
 func (a *App) GetAppStatus() AppStatus {
 	uptime := time.Since(a.startTime)
+
+	// Get statistics from storage
+	stats := GetStatistics()
+
 	return AppStatus{
 		Uptime:       formatDuration(uptime),
 		IsMonitoring: a.isMonitoring,
 		MonitorPath:  a.config.MonitorPath,
-		VideosSent:   a.videosSent,
-		AudiosSent:   a.audiosSent,
+		VideosSent:   stats.TotalClips,   // Use total clips from storage
+		AudiosSent:   stats.SessionClips, // Use session clips for audio count
 		Version:      version,
 	}
 }
@@ -359,6 +368,14 @@ func (a *App) GetAppStatus() AppStatus {
 // SaveConfig saves the entire configuration
 func (a *App) SaveConfig(config Config) error {
 	a.config = &config
+
+	// Save to new storage system
+	err := SaveSettings(config)
+	if err != nil {
+		fmt.Printf("Warning: Failed to save to storage system: %v\n", err)
+	}
+
+	// Keep backward compatibility with old config manager
 	return a.configManager.SaveConfig(a.config)
 }
 
@@ -428,4 +445,43 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm %ds", minutes, seconds)
 	}
 	return fmt.Sprintf("%ds", seconds)
+}
+
+// GetStatistics returns the current application statistics
+func (a *App) GetStatistics() Stats {
+	return GetStatistics()
+}
+
+// GetStorageInfo returns information about the storage system
+func (a *App) GetStorageInfo() map[string]interface{} {
+	return GetStorageInfo()
+}
+
+// ExportData exports settings and statistics to a file
+func (a *App) ExportData(filePath string) error {
+	return ExportSettings(filePath)
+}
+
+// ImportData imports settings from a file
+func (a *App) ImportData(filePath string) error {
+	err := ImportSettings(filePath)
+	if err != nil {
+		return err
+	}
+
+	// Reload config after import
+	a.config = &Config{}
+	*a.config = GetSettings()
+
+	return nil
+}
+
+// ResetSessionStats resets session-specific statistics
+func (a *App) ResetSessionStats() error {
+	return ResetSessionStats()
+}
+
+// GetDataPath returns the application data directory path
+func (a *App) GetDataPath() string {
+	return GetDataPath()
 }
