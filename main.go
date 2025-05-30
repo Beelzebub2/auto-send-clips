@@ -61,6 +61,7 @@ func main() {
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,
 			BackdropType:         windows.Mica,
+			Theme:                windows.SystemDefault, // Use system theme
 		},
 	})
 

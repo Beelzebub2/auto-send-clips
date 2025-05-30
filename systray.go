@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/energye/systray"
+	"github.com/getlantern/systray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -25,35 +25,65 @@ func (a *App) onTrayReady() {
 	// Use the icon from main.go
 	systray.SetIcon(icon)
 	systray.SetTitle("AutoClipSend")
-	systray.SetTooltip("AutoClipSend (Right-click for options)")
+	systray.SetTooltip("AutoClipSend (Right-click for menu)")
 
-	// Create menu items
-	mStatus := systray.AddMenuItem("AutoClipSend is monitoring...", "Status")
-	mStatus.Disable() // This item is just for display
+	// Status Section
+	mStatus := systray.AddMenuItem("⚡ AutoClipSend", "Status")
+	mStatus.Disable() // Make it non-clickable
 
+	mStatusState := systray.AddMenuItem("● Monitoring Active", "Current status")
+	mStatusState.Disable() // Make it non-clickable
+
+	// First Section Separator
 	systray.AddSeparator()
-	mShow := systray.AddMenuItem("Show Window", "Show the main window")
 
+	// Main Actions Section
+	mShow := systray.AddMenuItem("👁️ Show Window", "Open the main window")
+	mToggleMonitoring := systray.AddMenuItemCheckbox("▶️ Pause Monitoring", "Pause/Resume file monitoring", true)
+
+	// Final Section Separator
 	systray.AddSeparator()
 
-	mExit := systray.AddMenuItem("Exit", "Exit the application completely")
+	// Exit
+	mExit := systray.AddMenuItem("🚪 Exit", "Exit the application completely")
+
+	// Status update goroutine (refreshes status periodically)
+	go func() {
+		for {
+			if a.isMonitoring {
+				mStatusState.SetTitle("● Monitoring Active")
+				mToggleMonitoring.Check()
+				mToggleMonitoring.SetTitle("⏸️ Pause Monitoring")
+			} else {
+				mStatusState.SetTitle("○ Monitoring Paused")
+				mToggleMonitoring.Uncheck()
+				mToggleMonitoring.SetTitle("▶️ Resume Monitoring")
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}()
 
 	// Set click handlers for menu items
-	mShow.Click(func() {
-		fmt.Println("Show window clicked in tray menu")
-		// Use ShowFromTray to properly restore the window
-		a.ShowFromTray()
-	})
+	go func() {
+		for {
+			select {
+			case <-mShow.ClickedCh:
+				fmt.Println("Show window clicked in tray menu")
+				a.ShowFromTray()
 
-	mExit.Click(func() {
-		fmt.Println("Exit clicked in tray menu - shutting down app completely")
-		// First quit the systray
-		systray.Quit()
-		// Then quit the entire application
-		if a.ctx != nil {
-			runtime.Quit(a.ctx)
+			case <-mToggleMonitoring.ClickedCh:
+				a.isMonitoring = !a.isMonitoring
+				runtime.EventsEmit(a.ctx, "toggle-monitoring", a.isMonitoring)
+
+			case <-mExit.ClickedCh:
+				fmt.Println("Exit clicked in tray menu - shutting down app completely")
+				systray.Quit()
+				if a.ctx != nil {
+					runtime.Quit(a.ctx)
+				}
+			}
 		}
-	})
+	}()
 }
 
 // onTrayExit is called when the tray is exiting
