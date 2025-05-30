@@ -1,7 +1,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Settings, Globe, Folder, FolderOpen, TestTube, Save, ChevronDown, ChevronUp } from 'lucide-vue-next'
+import { Settings, Globe, Folder, FolderOpen, TestTube, Save } from 'lucide-vue-next'
 import { GetConfig, SaveConfig, UpdateMonitorPath, SelectFolder } from '../../wailsjs/go/main/App'
+import { EventsEmit } from '../../wailsjs/runtime/runtime'
 
 const config = ref({
   webhookURL: '',
@@ -13,8 +14,6 @@ const config = ref({
 const isLoading = ref(true)
 const isSaving = ref(false)
 const error = ref('')
-const success = ref('')
-const showAdvanced = ref(false)
 
 const loadConfig = async () => {
   try {
@@ -38,7 +37,6 @@ const saveConfig = async () => {
   try {
     isSaving.value = true
     error.value = ''
-    success.value = ''
     
     const configToSave = {
       webhook_url: config.value.webhookURL,
@@ -48,13 +46,9 @@ const saveConfig = async () => {
     }
     
     await SaveConfig(configToSave)
-    success.value = 'Configuration saved successfully!'
-    
-    // Clear success message after 3 seconds
-    setTimeout(() => {
-      success.value = ''
-    }, 3000)
+    EventsEmit('config-saved')
   } catch (err) {
+    EventsEmit('config-error', { message: err.message })
     error.value = 'Failed to save configuration: ' + err.message
   } finally {
     isSaving.value = false
@@ -78,10 +72,7 @@ const selectFolder = async () => {
 const updateMonitorPath = async () => {
   try {
     await UpdateMonitorPath(config.value.monitorPath)
-    success.value = 'Monitor path updated and watcher restarted!'
-    setTimeout(() => {
-      success.value = ''
-    }, 3000)
+    EventsEmit('config-saved')
   } catch (err) {
     error.value = 'Failed to update monitor path: ' + err.message
   }
@@ -114,12 +105,12 @@ const testWebhook = async () => {
     })
     
     if (response.ok) {
-      success.value = 'Webhook test successful!'
+      EventsEmit('webhook-test-success')
     } else {
-      error.value = 'Webhook test failed: ' + response.status
+      EventsEmit('webhook-test-error', { message: 'HTTP ' + response.status })
     }
   } catch (err) {
-    error.value = 'Webhook test failed: ' + err.message
+    EventsEmit('webhook-test-error', { message: err.message })
   }
 }
 
@@ -131,117 +122,114 @@ onMounted(() => {
 <template>  <div class="config-page">
     <div class="config-header">
       <h2>Configuration Settings</h2>
-    </div>
-
-    <div class="error-message" v-if="error">
+    </div>    <div class="error-message" v-if="error">
       {{ error }}
-    </div>
-
-    <div class="success-message" v-if="success">
-      {{ success }}
-    </div>
-
-    <div class="config-form" v-if="!isLoading">
-      <!-- Discord Configuration -->
-      <div class="config-section">
-        <h3>
-          <Globe :size="18" />
-          Discord Integration
-        </h3>
-        <div class="form-group">
-          <label for="webhookUrl">Discord Webhook URL</label>
-          <div class="input-group">
-            <input
-              id="webhookUrl"
-              v-model="config.webhookURL"
-              type="url"
-              placeholder="https://discord.com/api/webhooks/..."
-              class="form-input"
-            />
-            <button @click="testWebhook" class="test-button" :disabled="!config.webhookURL">
-              <TestTube :size="16" />
-              Test
-            </button>
+    </div>    <div class="config-form" v-if="!isLoading">
+      <div class="config-grid">
+        <!-- Left Column - Main Settings -->
+        <div class="config-column main-settings">
+          <!-- Discord Configuration -->
+          <div class="config-section primary">
+            <h3>
+              <Globe :size="18" />
+              Discord Integration
+            </h3>
+            <div class="form-group">
+              <label for="webhookUrl">Discord Webhook URL</label>
+              <div class="input-group">
+                <input
+                  id="webhookUrl"
+                  v-model="config.webhookURL"
+                  type="url"
+                  placeholder="https://discord.com/api/webhooks/..."
+                  class="form-input"
+                />
+                <button @click="testWebhook" class="test-button" :disabled="!config.webhookURL">
+                  <TestTube :size="16" />
+                  Test
+                </button>
+              </div>
+              <p class="form-help">
+                Get your webhook URL from Discord: Server Settings → Integrations → Webhooks
+              </p>
+            </div>
           </div>
-          <p class="form-help">
-            Get your webhook URL from Discord: Server Settings → Integrations → Webhooks
-          </p>
+
+          <!-- Monitor Configuration -->
+          <div class="config-section primary">
+            <h3>
+              <Folder :size="18" />
+              File Monitoring
+            </h3>
+            <div class="form-group">
+              <label for="monitorPath">Monitor Path</label>
+              <div class="input-group">
+                <input
+                  id="monitorPath"
+                  v-model="config.monitorPath"
+                  type="text"
+                  placeholder="Select a folder to monitor"
+                  class="form-input"
+                  readonly
+                />
+                <button @click="selectFolder" class="folder-button">
+                  <FolderOpen :size="16" />
+                  Browse
+                </button>
+              </div>
+              <button @click="updateMonitorPath" class="update-path-button" :disabled="!config.monitorPath">
+                <Save :size="16" />
+                Update Monitor Path
+              </button>
+              <p class="form-help">
+                The folder path to monitor for new video files
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column - Advanced Settings -->
+        <div class="config-column advanced-settings">
+          <div class="config-section secondary">
+            <h3>
+              <Settings :size="18" />
+              Advanced Settings
+            </h3>
+            <div class="form-group">
+              <label for="maxFileSize">Max File Size (MB)</label>
+              <input
+                id="maxFileSize"
+                v-model.number="config.maxFileSize"
+                type="number"
+                min="1"
+                max="100"
+                class="form-input"
+                @input="config.maxFileSize = $event.target.value * 1024 * 1024"
+              />
+              <p class="form-help">
+                Current: {{ formatFileSize(config.maxFileSize) }}
+              </p>
+            </div>
+            
+            <div class="form-group">
+              <label for="checkInterval">Check Interval (seconds)</label>
+              <input
+                id="checkInterval"
+                v-model.number="config.checkInterval"
+                type="number"
+                min="1"
+                max="60"
+                class="form-input"
+              />
+              <p class="form-help">
+                How often to check for new files
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Monitor Configuration -->
-      <div class="config-section">
-        <h3>
-          <Folder :size="18" />
-          File Monitoring
-        </h3>
-        <div class="form-group">
-          <label for="monitorPath">Monitor Path</label>
-          <div class="input-group">
-            <input
-              id="monitorPath"
-              v-model="config.monitorPath"
-              type="text"
-              placeholder="Select a folder to monitor"
-              class="form-input"
-              readonly
-            />
-            <button @click="selectFolder" class="folder-button">
-              <FolderOpen :size="16" />
-              Browse
-            </button>
-            <button @click="updateMonitorPath" class="update-button" :disabled="!config.monitorPath">
-              <Save :size="16" />
-              Update
-            </button>
-          </div>
-          <p class="form-help">
-            The folder path to monitor for new video files
-          </p>
-        </div>
-      </div>
-
-      <!-- Advanced Settings -->
-      <div class="config-section" v-if="showAdvanced">
-        <h3>
-          <Settings :size="18" />
-          Advanced Settings
-        </h3>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="maxFileSize">Max File Size (MB)</label>
-            <input
-              id="maxFileSize"
-              v-model.number="config.maxFileSize"
-              type="number"
-              min="1"
-              max="100"
-              class="form-input"
-              @input="config.maxFileSize = $event.target.value * 1024 * 1024"
-            />
-            <p class="form-help">
-              Current: {{ formatFileSize(config.maxFileSize) }}
-            </p>
-          </div>
-          
-          <div class="form-group">
-            <label for="checkInterval">Check Interval (seconds)</label>
-            <input
-              id="checkInterval"
-              v-model.number="config.checkInterval"
-              type="number"
-              min="1"
-              max="60"
-              class="form-input"
-            />
-            <p class="form-help">
-              How long to wait before processing new files
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Save Button -->
+      <!-- Save Button at Bottom -->
       <div class="form-actions">
         <button 
           @click="saveConfig" 
@@ -250,15 +238,7 @@ onMounted(() => {
         >
           <Save :size="18" />
           <span v-if="isSaving">Saving...</span>
-          <span v-else">Save Configuration</span>
-        </button>
-      </div>
-
-      <!-- Advanced Toggle at Bottom -->
-      <div class="advanced-toggle-container">
-        <button @click="showAdvanced = !showAdvanced" class="toggle-advanced">
-          <component :is="showAdvanced ? ChevronUp : ChevronDown" :size="16" />
-          {{ showAdvanced ? 'Hide Advanced' : 'Show Advanced' }}
+          <span v-else>Save All Settings</span>
         </button>
       </div>
     </div>
@@ -296,32 +276,6 @@ onMounted(() => {
   margin: 0;
 }
 
-.advanced-toggle-container {
-  display: flex;
-  justify-content: center;
-  padding-top: 1rem;
-  margin-top: 1rem;
-  border-top: 1px solid rgba(255, 140, 0, 0.2);
-}
-
-.toggle-advanced {
-  padding: 0.4rem 0.8rem;
-  background: transparent;
-  border: 1px solid rgba(255, 140, 0, 0.3);
-  color: #ff8c00;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 0.8rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.toggle-advanced:hover {
-  background: rgba(255, 140, 0, 0.1);
-}
-
 .error-message {
   background: rgba(255, 0, 0, 0.1);
   border: 1px solid rgba(255, 0, 0, 0.3);
@@ -333,31 +287,61 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.success-message {
-  background: rgba(0, 255, 0, 0.1);
-  border: 1px solid rgba(0, 255, 0, 0.3);
-  color: #4ade80;
-  padding: 0.75rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
-  flex-shrink: 0;
-}
-
 .config-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.5rem;
   flex: 1;
   min-height: 0;
 }
 
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 1.5rem;
+  flex: 1;
+}
+
+.config-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.main-settings {
+  flex: 1;
+}
+
+.advanced-settings {
+  min-width: 0;
+}
+
 .config-section {
   background: rgba(0, 0, 0, 0.3);
-  border-radius: 8px;
-  padding: 1rem;
+  border-radius: 12px;
+  padding: 1.25rem;
   border: 1px solid rgba(255, 140, 0, 0.2);
   backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.config-section:hover {
+  border-color: rgba(255, 140, 0, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(255, 140, 0, 0.1);
+}
+
+.config-section.primary {
+  border-color: rgba(255, 140, 0, 0.3);
+}
+
+.config-section.secondary {
+  border-color: rgba(138, 43, 226, 0.3);
+  background: rgba(138, 43, 226, 0.05);
+}
+
+.config-section.secondary:hover {
+  border-color: rgba(138, 43, 226, 0.5);
 }
 
 .config-section h3 {
@@ -418,7 +402,7 @@ onMounted(() => {
   flex: 1;
 }
 
-.test-button, .update-button, .folder-button {
+.test-button, .update-button, .folder-button, .update-path-button {
   padding: 0.6rem 0.8rem;
   background: #ff8c00;
   border: none;
@@ -434,11 +418,11 @@ onMounted(() => {
   font-size: 0.8rem;
 }
 
-.test-button:hover, .update-button:hover, .folder-button:hover {
+.test-button:hover, .update-button:hover, .folder-button:hover, .update-path-button:hover {
   background: #e67e22;
 }
 
-.test-button:disabled, .update-button:disabled {
+.test-button:disabled, .update-button:disabled, .update-path-button:disabled {
   background: rgba(255, 140, 0, 0.3);
   cursor: not-allowed;
 }
@@ -451,6 +435,17 @@ onMounted(() => {
   background: #1976d2;
 }
 
+.update-path-button {
+  width: 100%;
+  margin-top: 0.5rem;
+  justify-content: center;
+  background: #4CAF50;
+}
+
+.update-path-button:hover {
+  background: #45a049;
+}
+
 .form-help {
   margin-top: 0.4rem;
   font-size: 0.75rem;
@@ -461,8 +456,8 @@ onMounted(() => {
 .form-actions {
   display: flex;
   justify-content: center;
-  padding-top: 1rem;
-  margin-top: auto;
+  padding-top: 0.5rem;
+  margin-top: 1rem;
   flex-shrink: 0;
 }
 
@@ -508,17 +503,43 @@ onMounted(() => {
 }
 
 .spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(255, 140, 0, 0.3);
-  border-top: 3px solid #ff8c00;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+  position: relative;
+  width: 40px;
+  height: 40px;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.spinner::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  background: #ff8c00;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+.spinner::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  background: #ff8c00;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: configSpinnerPing 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+  opacity: 0.6;
+}
+
+@keyframes configSpinnerPing {
+  75%, 100% {
+    transform: translate(-50%, -50%) scale(3);
+    opacity: 0;
+  }
 }
 
 /* Scrollbar styling */
@@ -537,5 +558,35 @@ onMounted(() => {
 
 .config-page::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 140, 0, 0.5);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .config-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .advanced-settings {
+    order: -1;
+  }
+  
+  .config-section {
+    padding: 1rem;
+  }
+  
+  .input-group {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .form-actions {
+    padding-top: 0.5rem;
+  }
+  
+  .save-button {
+    min-width: auto;
+    width: 100%;
+  }
 }
 </style>

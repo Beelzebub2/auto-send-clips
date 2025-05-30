@@ -1,7 +1,8 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { Clock, Eye, EyeOff, Folder, Activity } from 'lucide-vue-next'
+import { Clock, Folder, Activity } from 'lucide-vue-next'
 import { GetAppStatus, StartMonitoring, StopMonitoring } from '../../wailsjs/go/main/App'
+import { EventsEmit } from '../../wailsjs/runtime/runtime'
 
 const status = ref({
   uptime: '0s',
@@ -31,8 +32,10 @@ const toggleMonitoring = async () => {
   try {
     if (status.value.isMonitoring) {
       await StopMonitoring()
+      EventsEmit('monitoring-stopped')
     } else {
       await StartMonitoring()
+      EventsEmit('monitoring-started')
     }
     await loadStatus()
   } catch (err) {
@@ -75,12 +78,16 @@ onUnmounted(() => {
         <div class="card-content">
           <div class="uptime-display">{{ status.uptime }}</div>
         </div>
-      </div>
-
-      <div class="status-card">
+      </div>      <div class="status-card">
         <div class="card-header">
           <h3>Monitoring</h3>
-          <component :is="status.isMonitoring ? Eye : EyeOff" :size="20" class="icon" :class="{ active: status.isMonitoring }" />
+          <div class="monitoring-indicator" :class="{ active: status.isMonitoring }">
+            <div v-if="status.isMonitoring" class="ping-animation">
+              <div class="ping-dot"></div>
+              <div class="ping-wave"></div>
+            </div>
+            <div v-else class="inactive-dot"></div>
+          </div>
         </div>
         <div class="card-content">
           <div class="monitor-status">
@@ -234,6 +241,61 @@ onUnmounted(() => {
   margin: 0;
 }
 
+.monitoring-indicator {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ping-animation {
+  position: relative;
+  width: 20px;
+  height: 20px;
+}
+
+.ping-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  background: #00ff00;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+.ping-wave {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  background: #00ff00;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+  opacity: 0.75;
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+  }
+}
+
+.inactive-dot {
+  width: 8px;
+  height: 8px;
+  background: #666;
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
 .icon {
   color: #ff8c00;
   flex-shrink: 0;
@@ -321,16 +383,42 @@ onUnmounted(() => {
 }
 
 .spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(255, 140, 0, 0.3);
-  border-top: 3px solid #ff8c00;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+  position: relative;
+  width: 40px;
+  height: 40px;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.spinner::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  background: #ff8c00;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+.spinner::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  background: #ff8c00;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: spinnerPing 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+  opacity: 0.6;
+}
+
+@keyframes spinnerPing {
+  75%, 100% {
+    transform: translate(-50%, -50%) scale(3);
+    opacity: 0;
+  }
 }
 </style>

@@ -53,6 +53,7 @@ func main() {
 		Bind:              []interface{}{app, app.notificationHandler}, // <-- Bind the app struct and notification handler for Wails
 		Frameless:         false,                                       // Use system title bar instead of custom topbar
 		WindowStartState:  options.Normal,
+		DisableResize:     true, // Disables window resizing
 		Windows: &windows.Options{
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,

@@ -56,6 +56,9 @@ onMounted(() => {
     
     <!-- Notification Modal - Always present to catch events -->
     <Notification />
+    
+    <!-- Toast Notifications - New modern notification system -->
+    <ToastNotification />
   </div>
 </template>
 

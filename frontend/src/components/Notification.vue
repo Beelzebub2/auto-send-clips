@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
+import { EventsOn, EventsOff, EventsEmit } from '../../wailsjs/runtime/runtime'
 
 // Reactive data for notification
 const showNotification = ref(false)
@@ -25,6 +25,10 @@ onMounted(() => {
       videoData.value = data
       customName.value = data.fileName || ''
       showNotification.value = true
+      console.log('Showing in-app notification modal')
+      
+      // Emit event for toast notification
+      EventsEmit('video-detected', data)
     }
   })
   
@@ -60,6 +64,10 @@ async function sendToDiscord() {
     // Import the SendToDiscord method dynamically
     const { SendToDiscord } = await import('../../wailsjs/go/main/App')
     await SendToDiscord(videoData.value.filePath, customName.value, audioOnly.value)
+    
+    // Emit success event for toast notification
+    EventsEmit('video-sent', { fileName: customName.value || videoData.value.fileName })
+    
     closeNotification()
     debugMessage.value = 'File sent to Discord successfully'
     console.log('File sent to Discord successfully')
@@ -73,11 +81,7 @@ async function sendToDiscord() {
 }
 </script>
 
-<template>
-  <div>
-    <!-- Debug info always visible -->
-    <div class="debug-bar">{{ debugMessage }}</div>
-    
+<template>  <div>
     <!-- Notification modal -->
     <div v-if="showNotification" class="notification-overlay">
       <div class="notification-modal">
@@ -132,19 +136,6 @@ async function sendToDiscord() {
 </template>
 
 <style scoped>
-.debug-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(0, 0, 0, 0.7);
-  color: #ff8c00;
-  padding: 4px 8px;
-  font-size: 12px;
-  z-index: 9999;
-  text-align: center;
-}
-
 .notification-overlay {
   position: fixed;
   top: 0;
@@ -156,29 +147,32 @@ async function sendToDiscord() {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  pointer-events: auto;
 }
 
 .notification-modal {
   background: #2d2d2d;
   border-radius: 12px;
   border: 1px solid rgba(255, 140, 0, 0.3);
-  width: 90%;
-  max-width: 400px;
+  width: 380px;
+  max-width: 90vw;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  animation: fadeInScale 0.3s ease-out;
 }
 
 .notification-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.25rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid rgba(255, 140, 0, 0.2);
 }
 
 .notification-header h2 {
   color: #ff8c00;
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
 .close-btn {
@@ -301,5 +295,35 @@ async function sendToDiscord() {
 .btn-secondary:hover {
   background: rgba(255, 140, 0, 0.1);
   border-color: rgba(255, 140, 0, 0.6);
+}
+
+@keyframes fadeInScale {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .notification-modal {
+    width: 90%;
+    max-width: 350px;
+  }
 }
 </style>
