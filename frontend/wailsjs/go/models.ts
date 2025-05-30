@@ -1,0 +1,23 @@
+export namespace main {
+	
+	export class Config {
+	    webhook_url: string;
+	    monitor_path: string;
+	    max_file_size: number;
+	    check_interval: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Config(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.webhook_url = source["webhook_url"];
+	        this.monitor_path = source["monitor_path"];
+	        this.max_file_size = source["max_file_size"];
+	        this.check_interval = source["check_interval"];
+	    }
+	}
+
+}
+

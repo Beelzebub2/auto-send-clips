@@ -1,0 +1,27 @@
+{
+    "$schema": "https://wails.io/schemas/config.v2.json",
+    "name": "autoclipsend",
+    "outputfilename": "autoclipsend",
+    "frontend": {
+        "dir": "./frontend/dist",
+        "install": "",
+        "build": ""
+    },
+    "author": {
+        "name": "",
+        "email": ""
+    },
+    "info": {
+        "companyName": "",
+        "productName": "AutoClipSend",
+        "productVersion": "1.0.0",
+        "copyright": "",
+        "comments": "Automatically send new video clips to Discord"
+    },
+    "nsisType": "multiple",
+    "obfuscated": false,
+    "compressionLevel": 0,
+    "windows": {
+        "icon": "icon.ico"
+    }
+}

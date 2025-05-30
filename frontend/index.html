@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoClipSend</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            padding-top: 10px;
+            /* Add padding for system title bar */
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.8;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="url"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input[type="text"]::placeholder,
+        .form-group input[type="url"]::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .form-group input[type="text"]:focus,
+        .form-group input[type="url"]:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .status.active {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .status.inactive {
+            background: rgba(248, 113, 113, 0.2);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        /* Notification styles */
+        .toast-notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            color: white;
+            width: 300px;
+            z-index: 1000;
+            animation: slideInRight 0.3s ease-out, fadeOut 0.5s ease-in 8s forwards;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .toast-notification .notification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .toast-notification .notification-header h3 {
+            font-size: 16px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toast-notification .notification-header .close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .toast-notification .notification-header .close-btn:hover {
+            opacity: 1;
+        }
+
+        .toast-notification .file-details {
+            font-size: 13px;
+            margin-bottom: 10px;
+            word-break: break-all;
+            opacity: 0.9;
+        }
+
+        .toast-notification .notification-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .toast-notification .notification-actions button {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .toast-notification .notification-actions .btn-primary {
+            background: rgba(255, 255, 255, 0.25);
+            color: white;
+        }
+
+        .toast-notification .notification-actions .btn-primary:hover {
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0;
+                visibility: hidden;
+            }
+        }
+
+        /* Toast messages */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 16px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            font-size: 14px;
+            z-index: 1001;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        .toast.success {
+            background: linear-gradient(45deg, #34d399, #10b981);
+        }
+
+        .toast.error {
+            background: linear-gradient(45deg, #f87171, #ef4444);
+        }
+
+        .toast.info {
+            background: linear-gradient(45deg, #60a5fa, #3b82f6);
+        }
+
+        /* Notification container */
+        #notifications-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 10px;
+            color: white;
+            font-weight: 500;
+            z-index: 1001;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.success {
+            background: linear-gradient(45deg, #34d399, #10b981);
+        }
+
+        .toast.error {
+            background: linear-gradient(45deg, #f87171, #ef4444);
+        }
+
+        /* Custom topbar styles */
+        .custom-topbar {
+            width: 100%;
+            height: 36px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            -webkit-app-region: drag;
+            user-select: none;
+            position: relative;
+            z-index: 1000;
+        }
+
+        .custom-topbar .window-controls {
+            display: flex;
+            gap: 8px;
+            -webkit-app-region: no-drag;
+        }
+
+        .custom-topbar .window-controls button {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 18px;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .custom-topbar .window-controls button:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .app-title {
+            font-weight: bold;
+            font-size: 16px;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .app-title img {
+            width: 22px;
+            height: 22px;
+            vertical-align: middle;
+            border-radius: 4px;
+            -webkit-app-region: no-drag;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 AutoClipSend</h1>
+            <p>Automatically send new clips to Discord</p>
+        </div>
+
+        <div id="status" class="status inactive">
+            ⚠️ Webhook URL not configured
+        </div>
+
+        <div class="form-group">
+            <label for="webhookUrl">Discord Webhook URL:</label>
+            <input type="url" id="webhookUrl" placeholder="https://discord.com/api/webhooks/..." />
+        </div>
+
+        <button class="btn btn-primary" onclick="saveWebhookUrl()">
+            💾 Save Configuration
+        </button>
+
+        <button class="btn btn-secondary" onclick="testNotification()">
+            🔔 Test Notification
+        </button>
+    </div>
+
+    <!-- Notification Modal -->
+    <div id="notificationModal" class="notification-modal">
+        <div class="notification-content">
+            <div class="notification-header">
+                <h2>📹 New Video Detected!</h2>
+                <div class="file-name" id="fileName"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="customName">Custom message (optional):</label>
+                <input type="text" id="customName" placeholder="Enter custom message..." />
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="audioOnly" />
+                <label for="audioOnly">Send audio only (extract from video)</label>
+            </div>
+
+            <div class="notification-actions">
+                <button class="btn btn-success" onclick="sendToDiscord()">
+                    📤 Send to Discord
+                </button>
+                <button class="btn btn-danger" onclick="closeNotification()">
+                    ❌ Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div id="toastContainer"></div>
+
+    <!-- Notification container -->
+    <div id="notifications-container"></div>
+    <script>
+        window.addEventListener('error', function (event) {
+            console.error('Global error:', event.error || event.message);
+        });
+        window.addEventListener('unhandledrejection', function (event) {
+            console.error('Unhandled promise rejection:', event.reason);
+        });
+
+        let currentFilePath = '';        // Check initial webhook configuration
+        window.addEventListener('DOMContentLoaded', async () => {
+            console.log('Page loaded, initializing...');
+
+            try {
+                console.log('Loading configuration...');
+                const config = await window.go.main.App.GetConfig();
+                console.log('Config loaded:', config);
+
+                if (config.webhook_url) {
+                    document.getElementById('webhookUrl').value = config.webhook_url;
+                    updateStatus(true);
+                    console.log('Webhook URL found and set');
+                } else {
+                    console.log('No webhook URL configured');
+                }
+            } catch (error) {
+                console.error('Error loading config:', error);
+                console.error('Error details:', error.message || error);
+                showToast(`Error loading configuration: ${error.message || error}`, 'error');
+            }
+
+            // Set up event listener for new video detection
+            if (window.runtime && window.runtime.EventsOn) {
+                console.log('Setting up event listener for video detection');
+                window.runtime.EventsOn('newVideoDetected', (data) => {
+                    console.log('New video detected:', data);
+                    const { fileName, filePath } = data;
+                    showNotification(fileName, filePath);
+                });
+            } else {
+                console.warn('Runtime events not available');
+            }
+        });
+
+        function updateStatus(isActive) {
+            const statusElement = document.getElementById('status');
+            if (isActive) {
+                statusElement.className = 'status active';
+                statusElement.innerHTML = '✅ Monitoring active - Watching for new videos';
+            } else {
+                statusElement.className = 'status inactive';
+                statusElement.innerHTML = '⚠️ Webhook URL not configured';
+            }
+        } async function saveWebhookUrl() {
+            const webhookUrl = document.getElementById('webhookUrl').value.trim();
+
+            if (!webhookUrl) {
+                showToast('Please enter a webhook URL', 'error');
+                return;
+            }
+
+            if (!webhookUrl.includes('discord.com/api/webhooks/')) {
+                showToast('Please enter a valid Discord webhook URL', 'error');
+                return;
+            }
+
+            try {
+                console.log('Saving webhook URL:', webhookUrl);
+                await window.go.main.App.SetWebhookURL(webhookUrl);
+                updateStatus(true);
+                showToast('Configuration saved successfully!', 'success');
+                console.log('Webhook URL saved successfully');
+            } catch (error) {
+                console.error('Error saving webhook URL:', error);
+                console.error('Error details:', error.message || error);
+                showToast(`Error saving configuration: ${error.message || error}`, 'error');
+            }
+        } function testNotification() {
+            console.log('Testing notification...');
+            showNotification('test_video.mp4', 'C:\\test\\test_video.mp4');
+        }
+
+        function showNotification(fileName, filePath) {
+            console.log('Showing notification for:', { fileName, filePath });
+            currentFilePath = filePath;
+            document.getElementById('fileName').textContent = fileName;
+            document.getElementById('customName').value = '';
+            document.getElementById('audioOnly').checked = false;
+            document.getElementById('notificationModal').style.display = 'flex';
+            console.log('Notification modal displayed');
+        }
+
+        function closeNotification() {
+            document.getElementById('notificationModal').style.display = 'none';
+            currentFilePath = '';
+        } async function sendToDiscord() {
+            const customName = document.getElementById('customName').value.trim();
+            const audioOnly = document.getElementById('audioOnly').checked;
+
+            if (!currentFilePath) {
+                showToast('No file selected', 'error');
+                return;
+            }
+
+            try {
+                // Show loading state
+                const sendButton = document.querySelector('.btn-success');
+                const originalText = sendButton.innerHTML;
+                sendButton.innerHTML = '⏳ Sending...';
+                sendButton.disabled = true;
+
+                console.log('Sending to Discord:', {
+                    filePath: currentFilePath,
+                    customName,
+                    audioOnly
+                });
+
+                await window.go.main.App.SendToDiscord(currentFilePath, customName, audioOnly);
+
+                showToast('File sent to Discord successfully!', 'success');
+                console.log('File sent successfully');
+                closeNotification();
+
+                // Restore button
+                sendButton.innerHTML = originalText;
+                sendButton.disabled = false;
+            } catch (error) {
+                console.error('Error sending to Discord:', error);
+                console.error('Error details:', error.message || error);
+                showToast(`Error sending file to Discord: ${error.message || error}`, 'error');
+
+                // Restore button
+                const sendButton = document.querySelector('.btn-success');
+                sendButton.innerHTML = '📤 Send to Discord';
+                sendButton.disabled = false;
+            }
+        }
+
+        // Listen for new video detection events
+        window.runtime.EventsOn("newVideoDetected", (data) => {
+            showVideoNotification(data.fileName, data.filePath);
+        });
+
+        // Function to show video notification
+        function showVideoNotification(fileName, filePath) {
+            const notificationId = 'notification-' + Date.now();
+            const notificationElement = document.createElement('div');
+            notificationElement.className = 'toast-notification';
+            notificationElement.id = notificationId;
+
+            notificationElement.innerHTML = `
+                <div class="notification-header">
+                    <h3>🎬 New Video Detected</h3>
+                    <button class="close-btn" onclick="dismissNotification('${notificationId}')">×</button>
+                </div>
+                <div class="file-details">${fileName}</div>
+                <div class="notification-actions">
+                    <button class="btn-primary" onclick="openVideoOptions('${fileName}', '${filePath}')">
+                        Options
+                    </button>
+                </div>
+            `;
+
+            document.getElementById('notifications-container').appendChild(notificationElement);
+
+            // Auto-dismiss after 10 seconds
+            setTimeout(() => {
+                dismissNotification(notificationId);
+            }, 10000);
+        }
+
+        // Function to dismiss a notification
+        function dismissNotification(notificationId) {
+            const notification = document.getElementById(notificationId);
+            if (notification) {
+                notification.style.animation = 'fadeOut 0.5s forwards';
+                setTimeout(() => {
+                    notification.remove();
+                }, 500);
+            }
+        }
+
+        // Function to open video options dialog
+        async function openVideoOptions(fileName, filePath) {
+            try {
+                // Show custom dialog with options
+                const customName = prompt("Enter a custom message (optional):", "");
+                const audioOnly = confirm("Send audio only (extract from video)?");
+
+                if (customName !== null) { // User didn't cancel
+                    await window.go.main.App.SendToDiscord(filePath, customName, audioOnly);
+                    showToast("Video sent to Discord successfully!", "success");
+                }
+            } catch (error) {
+                console.error("Error sending to Discord:", error);
+                showToast("Error sending video: " + error, "error");
+            }
+        }
+
+        // Function to show toast messages
+        function showToast(message, type = "info") {
+            const toast = document.createElement("div");
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+
+            document.body.appendChild(toast);
+
+            // Show toast
+            setTimeout(() => toast.classList.add("show"), 10);
+
+            // Auto hide
+            setTimeout(() => {
+                toast.classList.remove("show");
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Handle keyboard shortcuts
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeNotification();
+            }
+        });
+
+        // Window control functions
+        function minimizeWindow() {
+            window.go.main.App.Minimize();
+        }
+
+        function maximizeWindow() {
+            window.go.main.App.Maximize();
+        }
+
+        function closeWindow() {
+            window.go.main.App.HandleWindowClose();
+        }
+    </script>
+</body>
+
+</html>
