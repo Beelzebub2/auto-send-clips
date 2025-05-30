@@ -1,5 +1,23 @@
 export namespace main {
 	
+	export class AppStatus {
+	    uptime: string;
+	    isMonitoring: boolean;
+	    monitorPath: string;
+	    lastActivity: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AppStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.uptime = source["uptime"];
+	        this.isMonitoring = source["isMonitoring"];
+	        this.monitorPath = source["monitorPath"];
+	        this.lastActivity = source["lastActivity"];
+	    }
+	}
 	export class Config {
 	    webhook_url: string;
 	    monitor_path: string;

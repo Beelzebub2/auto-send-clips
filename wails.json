@@ -4,12 +4,12 @@
     "outputfilename": "autoclipsend",
     "frontend": {
         "dir": "./frontend/dist",
-        "install": "",
-        "build": ""
+        "install": "npm install",
+        "build": "npm run build"
     },
     "author": {
-        "name": "",
-        "email": ""
+        "name": "Beelzebub",
+        "email": "65181309+Beelzebub2@users.noreply.github.com"
     },
     "info": {
         "companyName": "",
@@ -23,5 +23,14 @@
     "compressionLevel": 0,
     "windows": {
         "icon": "icon.ico"
-    }
+    },
+    "windowStartState": "normal",
+    "width": 430,
+    "height": 550,
+    "minWidth": 430,
+    "minHeight": 550,
+    "maxWidth": 430,
+    "maxHeight": 550,
+    "resizable": false,
+    "title": "AutoClipSend"
 }

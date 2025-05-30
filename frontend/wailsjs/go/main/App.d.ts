@@ -4,9 +4,13 @@ import {main} from '../models';
 
 export function BringToFront():Promise<void>;
 
+export function GetAppStatus():Promise<main.AppStatus>;
+
 export function GetConfig():Promise<main.Config>;
 
 export function GetFileSize(arg1:string):Promise<number>;
+
+export function GetUptime():Promise<string>;
 
 export function HandleWindowClose():Promise<void>;
 
@@ -20,6 +24,10 @@ export function Minimize():Promise<void>;
 
 export function MinimizeToTray():Promise<void>;
 
+export function SaveConfig(arg1:main.Config):Promise<void>;
+
+export function SelectFolder():Promise<string>;
+
 export function SendToDiscord(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
 export function SetWebhookURL(arg1:string):Promise<void>;
@@ -28,4 +36,10 @@ export function ShowFromTray():Promise<void>;
 
 export function ShowNotification(arg1:string,arg2:string):Promise<void>;
 
+export function StartMonitoring():Promise<void>;
+
+export function StopMonitoring():Promise<void>;
+
 export function ToggleVisibility():Promise<void>;
+
+export function UpdateMonitorPath(arg1:string):Promise<void>;

@@ -18,11 +18,22 @@ import (
 
 // App struct
 type App struct {
-	ctx           context.Context
-	watcher       *fsnotify.Watcher
-	config        *Config
-	configManager *ConfigManager
-	isVisible     bool // Tracks if window is visible
+	ctx                 context.Context
+	watcher             *fsnotify.Watcher
+	config              *Config
+	configManager       *ConfigManager
+	isVisible           bool      // Tracks if window is visible
+	startTime           time.Time // Track when app started
+	isMonitoring        bool      // Track monitoring status
+	notificationHandler *NotificationHandler
+}
+
+// AppStatus represents the current application status
+type AppStatus struct {
+	Uptime       string `json:"uptime"`
+	IsMonitoring bool   `json:"isMonitoring"`
+	MonitorPath  string `json:"monitorPath"`
+	LastActivity string `json:"lastActivity"`
 }
 
 // NewApp creates a new App application struct
@@ -37,10 +48,17 @@ func NewApp() *App {
 		}
 	}
 
-	return &App{
+	app := &App{
 		config:        config,
 		configManager: configManager,
+		startTime:     time.Now(),
+		isMonitoring:  false,
 	}
+
+	// Create notification handler after app is initialized
+	app.notificationHandler = NewNotificationHandler(app)
+
+	return app
 }
 
 // startup is called when the app starts. The context here
@@ -93,6 +111,7 @@ func (a *App) startFileWatcher() {
 	a.watcher, err = fsnotify.NewWatcher()
 	if err != nil {
 		fmt.Printf("Error creating watcher: %v\n", err)
+		a.isMonitoring = false
 		return
 	}
 	defer a.watcher.Close()
@@ -101,9 +120,11 @@ func (a *App) startFileWatcher() {
 	err = a.watcher.Add(a.config.MonitorPath)
 	if err != nil {
 		fmt.Printf("Error adding path to watcher: %v\n", err)
+		a.isMonitoring = false
 		return
 	}
 
+	a.isMonitoring = true
 	fmt.Printf("Watching directory: %s\n", a.config.MonitorPath)
 
 	for {
@@ -131,26 +152,10 @@ func (a *App) startFileWatcher() {
 
 // ShowNotification triggers a notification for a new video
 func (a *App) ShowNotification(fileName, filePath string) {
-	fmt.Printf("Showing notification for: %s\n", fileName)
+	fmt.Printf("ShowNotification called for: %s\n", fileName)
 
-	// Always show the window using the same logic as the tray menu
-	a.ShowFromTray()
-	// Give the window a moment to appear before sending the notification
-	time.Sleep(250 * time.Millisecond)
-
-	// Now emit the event to the frontend to show the notification
-	runtime.EventsEmit(a.ctx, "newVideoDetected", map[string]string{
-		"fileName": fileName,
-		"filePath": filePath,
-	})
-
-	// Ensure window is brought to foreground with a toggle of always-on-top
-	runtime.WindowSetAlwaysOnTop(a.ctx, true)
-	time.Sleep(100 * time.Millisecond)
-	runtime.WindowSetAlwaysOnTop(a.ctx, false)
-
-	// Minimize to tray again after notification
-	// a.MinimizeToTray() // <-- Commented out to allow user interaction
+	// Use the dedicated notification handler
+	a.notificationHandler.SendVideoNotification(fileName, filePath)
 }
 
 // GetFileSize returns the size of a file in MB
@@ -311,4 +316,94 @@ func (a *App) sendFileToDiscord(filePath, customName string) error {
 	}
 
 	return nil
+}
+
+// GetUptime returns the application's uptime
+func (a *App) GetUptime() string {
+	return time.Since(a.startTime).String()
+}
+
+// GetAppStatus returns the current application status
+func (a *App) GetAppStatus() AppStatus {
+	uptime := time.Since(a.startTime)
+	return AppStatus{
+		Uptime:       formatDuration(uptime),
+		IsMonitoring: a.isMonitoring,
+		MonitorPath:  a.config.MonitorPath,
+		LastActivity: "Running", // You can track last activity here
+	}
+}
+
+// SaveConfig saves the entire configuration
+func (a *App) SaveConfig(config Config) error {
+	a.config = &config
+	return a.configManager.SaveConfig(a.config)
+}
+
+// UpdateMonitorPath updates the monitor path and restarts watcher
+func (a *App) UpdateMonitorPath(path string) error {
+	// Stop current watcher if running
+	if a.watcher != nil {
+		a.watcher.Close()
+		a.isMonitoring = false
+	}
+
+	// Update config
+	a.config.MonitorPath = path
+	err := a.configManager.SaveConfig(a.config)
+	if err != nil {
+		return err
+	}
+
+	// Restart watcher with new path
+	go a.startFileWatcher()
+	return nil
+}
+
+// StartMonitoring starts the file monitoring
+func (a *App) StartMonitoring() error {
+	if !a.isMonitoring {
+		go a.startFileWatcher()
+	}
+	return nil
+}
+
+// StopMonitoring stops the file monitoring
+func (a *App) StopMonitoring() error {
+	if a.watcher != nil {
+		a.watcher.Close()
+		a.isMonitoring = false
+	}
+	return nil
+}
+
+// SelectFolder opens a folder selection dialog
+func (a *App) SelectFolder() (string, error) {
+	options := runtime.OpenDialogOptions{
+		Title: "Select Monitor Folder",
+	}
+
+	result, err := runtime.OpenDirectoryDialog(a.ctx, options)
+	if err != nil {
+		return "", err
+	}
+
+	return result, nil
+}
+
+// formatDuration formats a duration into a readable string
+func formatDuration(d time.Duration) string {
+	days := int(d.Hours()) / 24
+	hours := int(d.Hours()) % 24
+	minutes := int(d.Minutes()) % 60
+	seconds := int(d.Seconds()) % 60
+
+	if days > 0 {
+		return fmt.Sprintf("%dd %dh %dm %ds", days, hours, minutes, seconds)
+	} else if hours > 0 {
+		return fmt.Sprintf("%dh %dm %ds", hours, minutes, seconds)
+	} else if minutes > 0 {
+		return fmt.Sprintf("%dm %ds", minutes, seconds)
+	}
+	return fmt.Sprintf("%ds", seconds)
 }

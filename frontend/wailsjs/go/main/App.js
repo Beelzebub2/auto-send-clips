@@ -6,12 +6,20 @@ export function BringToFront() {
   return window['go']['main']['App']['BringToFront']();
 }
 
+export function GetAppStatus() {
+  return window['go']['main']['App']['GetAppStatus']();
+}
+
 export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }
 
 export function GetFileSize(arg1) {
   return window['go']['main']['App']['GetFileSize'](arg1);
+}
+
+export function GetUptime() {
+  return window['go']['main']['App']['GetUptime']();
 }
 
 export function HandleWindowClose() {
@@ -38,6 +46,14 @@ export function MinimizeToTray() {
   return window['go']['main']['App']['MinimizeToTray']();
 }
 
+export function SaveConfig(arg1) {
+  return window['go']['main']['App']['SaveConfig'](arg1);
+}
+
+export function SelectFolder() {
+  return window['go']['main']['App']['SelectFolder']();
+}
+
 export function SendToDiscord(arg1, arg2, arg3) {
   return window['go']['main']['App']['SendToDiscord'](arg1, arg2, arg3);
 }
@@ -54,6 +70,18 @@ export function ShowNotification(arg1, arg2) {
   return window['go']['main']['App']['ShowNotification'](arg1, arg2);
 }
 
+export function StartMonitoring() {
+  return window['go']['main']['App']['StartMonitoring']();
+}
+
+export function StopMonitoring() {
+  return window['go']['main']['App']['StopMonitoring']();
+}
+
 export function ToggleVisibility() {
   return window['go']['main']['App']['ToggleVisibility']();
+}
+
+export function UpdateMonitorPath(arg1) {
+  return window['go']['main']['App']['UpdateMonitorPath'](arg1);
 }

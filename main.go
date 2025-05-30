@@ -42,16 +42,17 @@ func main() {
 	err = wails.Run(&options.App{
 		Title:  "AutoClipSend",
 		Width:  430,
-		Height: 490,
+		Height: 550,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        app.startup,
-		OnBeforeClose:    app.beforeClose, HideWindowOnClose: true, // Set to true to ensure window hides instead of closing
-		Bind:             []interface{}{app}, // <-- Bind the app struct for Wails
-		Frameless:        false,              // Use system title bar instead of custom topbar
-		WindowStartState: options.Normal,
+		BackgroundColour:  &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		OnStartup:         app.startup,
+		OnBeforeClose:     app.beforeClose,
+		HideWindowOnClose: true,                                        // Set to true to ensure window hides instead of closing
+		Bind:              []interface{}{app, app.notificationHandler}, // <-- Bind the app struct and notification handler for Wails
+		Frameless:         false,                                       // Use system title bar instead of custom topbar
+		WindowStartState:  options.Normal,
 		Windows: &windows.Options{
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,
