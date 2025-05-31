@@ -8,14 +8,11 @@ import (
 
 // Config holds application configuration
 type Config struct {
-	WebhookURL        string `json:"webhook_url"`
-	DiscordWebhook    string `json:"discord_webhook"` // Alternative name for webhook
-	MonitorPath       string `json:"monitor_path"`
-	MaxFileSize       int64  `json:"max_file_size"`  // in MB
-	CheckInterval     int    `json:"check_interval"` // in seconds
-	AudioExtraction   bool   `json:"audio_extraction"`
-	ShowNotifications bool   `json:"show_notifications"`
-	AutoCompress      bool   `json:"auto_compress"`
+	WebhookURL     string `json:"webhook_url"`
+	DiscordWebhook string `json:"discord_webhook"` // Alternative name for webhook
+	MonitorPath    string `json:"monitor_path"`
+	MaxFileSize    int64  `json:"max_file_size"`  // in MB
+	CheckInterval  int    `json:"check_interval"` // in seconds
 }
 
 // ConfigManager handles saving and loading configuration (legacy)
@@ -51,12 +48,9 @@ func (cm *ConfigManager) LoadConfig() (*Config, error) {
 	if err != nil {
 		// Return default config if file doesn't exist
 		return &Config{
-			MonitorPath:       `E:\Highlights\Clips\Screen Recording`,
-			MaxFileSize:       10, // 10MB
-			CheckInterval:     2,
-			AudioExtraction:   false,
-			ShowNotifications: true,
-			AutoCompress:      true,
+			MonitorPath:   `E:\Highlights\Clips\Screen Recording`,
+			MaxFileSize:   10, // 10MB
+			CheckInterval: 2,
 		}, nil
 	}
 

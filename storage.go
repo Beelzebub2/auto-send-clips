@@ -57,12 +57,9 @@ func InitStorage() error {
 		// Initialize appData
 		appData = &AppData{
 			Settings: Config{
-				MonitorPath:       `E:\Highlights\Clips\Screen Recording`,
-				DiscordWebhook:    "",
-				AudioExtraction:   false,
-				ShowNotifications: true,
-				AutoCompress:      true,
-				MaxFileSize:       20, // Default 20 MB
+				MonitorPath:    `E:\Highlights\Clips\Screen Recording`,
+				DiscordWebhook: "",
+				MaxFileSize:    10, // Default 20 MB
 			},
 			Statistics: Stats{
 				TotalClips:     0,
