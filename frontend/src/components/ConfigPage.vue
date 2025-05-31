@@ -1,13 +1,15 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { Settings, Globe, Folder, FolderOpen, TestTube, Save } from 'lucide-vue-next'
-import { GetConfig, SaveConfig, UpdateMonitorPath, SelectFolder } from '../../wailsjs/go/main/App'
+import { GetConfig, SaveConfig, UpdateMonitorPath, SelectFolder, SetWindowsStartup } from '../../wailsjs/go/main/App'
 
 const config = ref({
   webhookURL: '',
   monitorPath: '',
   maxFileSize: 20, // Store in MB directly
-  checkInterval: 2
+  checkInterval: 2,
+  startupInitialization: true,
+  windowsStartup: false
 })
 
 const isLoading = ref(true)
@@ -23,7 +25,9 @@ const loadConfig = async () => {
       webhookURL: appConfig.webhook_url || '',
       monitorPath: appConfig.monitor_path || '',
       maxFileSize: appConfig.max_file_size || 10, // Backend stores in MB now
-      checkInterval: appConfig.check_interval || 2
+      checkInterval: appConfig.check_interval || 2,
+      startupInitialization: appConfig.startup_initialization !== undefined ? appConfig.startup_initialization : true,
+      windowsStartup: appConfig.windows_startup !== undefined ? appConfig.windows_startup : false
     }
   } catch (err) {
     error.value = 'Failed to load configuration: ' + err.message
@@ -36,12 +40,14 @@ const saveConfig = async () => {
   try {
     isSaving.value = true
     error.value = ''
-    
     const configToSave = {
       webhook_url: config.value.webhookURL,
       monitor_path: config.value.monitorPath,
       max_file_size: config.value.maxFileSize,
-      check_interval: config.value.checkInterval    }
+      check_interval: config.value.checkInterval,
+      startup_initialization: config.value.startupInitialization,
+      windows_startup: config.value.windowsStartup
+    }
     
     await SaveConfig(configToSave)
   } catch (err) {
@@ -102,6 +108,17 @@ const testWebhook = async () => {
 
 onMounted(() => {
   loadConfig()
+})
+
+// Watch for Windows startup setting changes and immediately apply them
+watch(() => config.value.windowsStartup, async (newValue) => {
+  try {
+    await SetWindowsStartup(newValue)
+  } catch (err) {
+    error.value = 'Failed to update Windows startup setting: ' + err.message
+    // Revert the toggle if the backend call failed
+    config.value.windowsStartup = !newValue
+  }
 })
 </script>
 
@@ -191,8 +208,7 @@ onMounted(() => {
                 Maximum file size in megabytes (MB)
               </p>
             </div>
-            
-            <div class="form-group">
+              <div class="form-group">
               <label for="checkInterval">Check Interval (seconds)</label>
               <input
                 id="checkInterval"
@@ -205,7 +221,43 @@ onMounted(() => {
               <p class="form-help">
                 How often to check for new files
               </p>
-            </div>          </div>
+            </div>            <div class="form-group">
+              <label for="startupInitialization">Start monitoring on startup</label>
+              <div class="toggle-container">
+                <label class="toggle-switch">
+                  <input
+                    id="startupInitialization"
+                    v-model="config.startupInitialization"
+                    type="checkbox"
+                    class="toggle-input"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label">{{ config.startupInitialization ? 'Enabled' : 'Disabled' }}</span>
+              </div>
+              <p class="form-help">
+                Automatically begin file monitoring when the application starts
+              </p>
+            </div>
+            
+            <div class="form-group">
+              <label for="windowsStartup">Start with Windows</label>
+              <div class="toggle-container">
+                <label class="toggle-switch">
+                  <input
+                    id="windowsStartup"
+                    v-model="config.windowsStartup"
+                    type="checkbox"
+                    class="toggle-input"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label">{{ config.windowsStartup ? 'Enabled' : 'Disabled' }}</span>
+              </div>
+              <p class="form-help">
+                Automatically launch AutoClipSend when Windows starts
+              </p>
+            </div></div>
         </div>
       </div>
       
@@ -443,6 +495,91 @@ onMounted(() => {
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.6);
   line-height: 1.3;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 500;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.form-checkbox {
+  margin-right: 0.75rem;
+  accent-color: #ff8c00;
+  transform: scale(1.2);
+}
+
+.checkbox-text {
+  user-select: none;
+}
+
+/* Toggle Switch Styles */
+.toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.toggle-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+  border-radius: 12px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 2px;
+  bottom: 2px;
+  background-color: #ffffff;
+  transition: all 0.3s ease;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-input:checked + .toggle-slider {
+  background-color: #ff8c00;
+  border-color: #ff8c00;
+}
+
+.toggle-input:checked + .toggle-slider:before {
+  transform: translateX(26px);
+}
+
+.toggle-slider:hover {
+  box-shadow: 0 0 8px rgba(255, 140, 0, 0.3);
+}
+
+.toggle-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #ffffff;
+  min-width: 60px;
 }
 
 .save-button {

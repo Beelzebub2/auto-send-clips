@@ -28,6 +28,8 @@ export function ImportData(arg1:string):Promise<void>;
 
 export function InitTray():Promise<void>;
 
+export function IsInWindowsStartup():Promise<boolean>;
+
 export function IsVisible():Promise<boolean>;
 
 export function Maximize():Promise<void>;
@@ -45,6 +47,8 @@ export function SelectFolder():Promise<string>;
 export function SendToDiscord(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
 export function SetWebhookURL(arg1:string):Promise<void>;
+
+export function SetWindowsStartup(arg1:boolean):Promise<void>;
 
 export function ShowCustomTrayMenu():Promise<void>;
 

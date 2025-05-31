@@ -94,8 +94,9 @@ You can download the latest pre-built executable from the [Releases](https://git
 
 The application stores its configuration in:
 ```
-%APPDATA%\AutoClipSend\settings.json
+~/.autoclipsend/config.json
 ```
+(Located in your user home directory)
 
 The settings include:
 - Monitor path
@@ -104,6 +105,8 @@ The settings include:
 - Audio extraction preference
 - Notification settings
 - Compression settings
+- Startup initialization settings
+- Usage statistics
 
 ## Statistics
 

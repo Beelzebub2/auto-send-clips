@@ -28,6 +28,17 @@ export namespace main {
 	    monitor_path: string;
 	    max_file_size: number;
 	    check_interval: number;
+	    startup_initialization: boolean;
+	    windows_startup: boolean;
+	    total_clips: number;
+	    // Go type: time
+	    last_clip_time: any;
+	    session_clips: number;
+	    total_size_bytes: number;
+	    // Go type: time
+	    start_time: any;
+	    // Go type: time
+	    last_update_time: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -40,7 +51,33 @@ export namespace main {
 	        this.monitor_path = source["monitor_path"];
 	        this.max_file_size = source["max_file_size"];
 	        this.check_interval = source["check_interval"];
+	        this.startup_initialization = source["startup_initialization"];
+	        this.windows_startup = source["windows_startup"];
+	        this.total_clips = source["total_clips"];
+	        this.last_clip_time = this.convertValues(source["last_clip_time"], null);
+	        this.session_clips = source["session_clips"];
+	        this.total_size_bytes = source["total_size_bytes"];
+	        this.start_time = this.convertValues(source["start_time"], null);
+	        this.last_update_time = this.convertValues(source["last_update_time"], null);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Stats {
 	    total_clips: number;
