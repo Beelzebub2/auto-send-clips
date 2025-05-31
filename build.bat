@@ -1,6 +1,6 @@
 @echo off
 echo ====================================
-echo    Building AutoClipSend v1.0
+echo    Building AutoClipSend
 echo ====================================
 echo.
 
@@ -71,7 +71,7 @@ if not exist "frontend\notification" (
 )
 
 REM Build the application
-echo Building application...
+echo Building application
 echo This may take a few minutes...
 wails build -clean
 if %ERRORLEVEL% EQU 0 (

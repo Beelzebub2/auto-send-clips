@@ -5,7 +5,6 @@ A Golang Wails application that automatically monitors a folder for new video fi
 ## Features
 
 - 🎬 **Automatic Monitoring**: Watches your configured folder for new video files
-- 🔔 **Custom Notifications**: Shows a beautiful notification dialog in the bottom-right corner
 - 📤 **Discord Integration**: Sends files to Discord via webhook
 - 🎵 **Audio Extraction**: Option to extract and send audio only
 - 📏 **Size Management**: Automatically compresses files to stay under configured size limit
@@ -44,13 +43,6 @@ A Golang Wails application that automatically monitors a folder for new video fi
 ### 📦 Download Pre-built Executable
 
 You can download the latest pre-built executable from the [Releases](https://github.com/Beelzebub2/auto-send-clips/releases) page instead of building from source.
-
-### 🔄 Update Checking
-
-The application automatically checks for updates by comparing the current version with the latest release on GitHub:
-
-1. Click the download link to get the latest version
-2. Close the application before installing the update
 
 ## Setup
 
