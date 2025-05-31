@@ -4,19 +4,35 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"time"
 )
 
-// Config holds application configuration
-type Config struct {
-	WebhookURL     string `json:"webhook_url"`
-	DiscordWebhook string `json:"discord_webhook"` // Alternative name for webhook
-	MonitorPath    string `json:"monitor_path"`
-	MaxFileSize    int64  `json:"max_file_size"`  // in MB
-	CheckInterval  int    `json:"check_interval"` // in seconds
+// Stats represents application statistics
+type Stats struct {
+	TotalClips     int       `json:"total_clips"`
+	LastClipTime   time.Time `json:"last_clip_time"`
+	SessionClips   int       `json:"session_clips"`
+	TotalSize      int64     `json:"total_size_bytes"`
+	StartTime      time.Time `json:"start_time"`
+	LastUpdateTime time.Time `json:"last_update_time"`
 }
 
-// ConfigManager handles saving and loading configuration (legacy)
-// Note: This is kept for backward compatibility, new code should use storage.go
+// Config holds application configuration and statistics
+type Config struct {
+	// Settings
+	WebhookURL            string `json:"webhook_url"`
+	DiscordWebhook        string `json:"discord_webhook"` // Alternative name for webhook
+	MonitorPath           string `json:"monitor_path"`
+	MaxFileSize           int64  `json:"max_file_size"`          // in MB
+	CheckInterval         int    `json:"check_interval"`         // in seconds
+	StartupInitialization bool   `json:"startup_initialization"` // Whether to start monitoring on startup
+	WindowsStartup        bool   `json:"windows_startup"`        // Whether to start with Windows
+
+	// Statistics
+	Stats
+}
+
+// ConfigManager handles saving and loading configuration
 type ConfigManager struct {
 	configPath string
 }
@@ -45,12 +61,20 @@ func (cm *ConfigManager) SaveConfig(config *Config) error {
 // LoadConfig loads the configuration from file (legacy)
 func (cm *ConfigManager) LoadConfig() (*Config, error) {
 	data, err := os.ReadFile(cm.configPath)
-	if err != nil {
-		// Return default config if file doesn't exist
+	if err != nil { // Return default config if file doesn't exist
 		return &Config{
-			MonitorPath:   `E:\Highlights\Clips\Screen Recording`,
-			MaxFileSize:   10, // 10MB
-			CheckInterval: 2,
+			MonitorPath:           `E:\Highlights\Clips\Screen Recording`,
+			MaxFileSize:           10, // 10MB
+			CheckInterval:         2,
+			StartupInitialization: true,  // Default to enabled
+			WindowsStartup:        false, // Default to disabled
+			Stats: Stats{
+				TotalClips:     0,
+				SessionClips:   0,
+				TotalSize:      0,
+				StartTime:      time.Now(),
+				LastUpdateTime: time.Now(),
+			},
 		}, nil
 	}
 
@@ -61,4 +85,27 @@ func (cm *ConfigManager) LoadConfig() (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// IncrementClipCount increments the clip counters and updates file size
+func (cm *ConfigManager) IncrementClipCount(config *Config, fileSize int64) error {
+	config.TotalClips++
+	config.SessionClips++
+	config.TotalSize += fileSize
+	config.LastClipTime = time.Now()
+	config.LastUpdateTime = time.Now()
+	return cm.SaveConfig(config)
+}
+
+// ResetSessionStats resets session-specific statistics
+func (cm *ConfigManager) ResetSessionStats(config *Config) error {
+	config.SessionClips = 0
+	config.StartTime = time.Now()
+	config.LastUpdateTime = time.Now()
+	return cm.SaveConfig(config)
+}
+
+// GetUptime returns the uptime since start time
+func (cm *ConfigManager) GetUptime(config *Config) time.Duration {
+	return time.Since(config.StartTime)
 }

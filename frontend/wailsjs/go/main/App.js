@@ -54,6 +54,10 @@ export function InitTray() {
   return window['go']['main']['App']['InitTray']();
 }
 
+export function IsInWindowsStartup() {
+  return window['go']['main']['App']['IsInWindowsStartup']();
+}
+
 export function IsVisible() {
   return window['go']['main']['App']['IsVisible']();
 }
@@ -88,6 +92,10 @@ export function SendToDiscord(arg1, arg2, arg3) {
 
 export function SetWebhookURL(arg1) {
   return window['go']['main']['App']['SetWebhookURL'](arg1);
+}
+
+export function SetWindowsStartup(arg1) {
+  return window['go']['main']['App']['SetWindowsStartup'](arg1);
 }
 
 export function ShowCustomTrayMenu() {

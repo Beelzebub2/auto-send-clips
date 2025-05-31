@@ -14,6 +14,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"golang.org/x/sys/windows/registry"
 )
 
 // App struct
@@ -41,19 +42,32 @@ type AppStatus struct {
 
 // NewApp creates a new App application struct
 func NewApp() *App {
-	// Initialize storage system first
-	if err := InitStorage(); err != nil {
-		fmt.Printf("Warning: Failed to initialize storage: %v\n", err)
-	}
-
-	// Load config from storage system
-	config := GetSettings()
-
-	// Keep config manager for backward compatibility
+	// Create config manager
 	configManager := NewConfigManager()
 
+	// Load config from config manager
+	config, err := configManager.LoadConfig()
+	if err != nil {
+		fmt.Printf("Warning: Failed to load config: %v, using defaults\n", err)
+		// Create default config if loading fails
+		config = &Config{
+			MonitorPath:           `E:\Highlights\Clips\Screen Recording`,
+			MaxFileSize:           10, // 10MB
+			CheckInterval:         2,
+			StartupInitialization: true,
+			WindowsStartup:        false, // Default to disabled
+			Stats: Stats{
+				TotalClips:     0,
+				SessionClips:   0,
+				TotalSize:      0,
+				StartTime:      time.Now(),
+				LastUpdateTime: time.Now(),
+			},
+		}
+	}
+
 	app := &App{
-		config:        &config,
+		config:        config,
 		configManager: configManager,
 		startTime:     time.Now(),
 		isMonitoring:  false,
@@ -74,8 +88,10 @@ func (a *App) startup(ctx context.Context) {
 	// Initialize the system tray first to ensure it's available
 	a.InitTray()
 
-	// Start file watcher in a goroutine
-	go a.startFileWatcher()
+	// Start file watcher in a goroutine only if startup initialization is enabled
+	if a.config.StartupInitialization {
+		go a.startFileWatcher()
+	}
 }
 
 // domReady is called when the DOM is ready, just before the frontend shows
@@ -267,10 +283,8 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 	fileSize := int64(0)
 	if fileInfo != nil {
 		fileSize = fileInfo.Size()
-	}
-
-	// Increment clip count in persistent storage
-	err = IncrementClipCount(fileSize)
+	} // Increment clip count using ConfigManager
+	err = a.configManager.IncrementClipCount(a.config, fileSize)
 	if err != nil {
 		fmt.Printf("Warning: Failed to update clip statistics: %v\n", err)
 	}
@@ -352,8 +366,8 @@ func (a *App) GetVersion() string {
 func (a *App) GetAppStatus() AppStatus {
 	uptime := time.Since(a.startTime)
 
-	// Get statistics from storage
-	stats := GetStatistics()
+	// Get statistics from config
+	stats := a.GetStatistics()
 
 	return AppStatus{
 		Uptime:       formatDuration(uptime),
@@ -368,14 +382,6 @@ func (a *App) GetAppStatus() AppStatus {
 // SaveConfig saves the entire configuration
 func (a *App) SaveConfig(config Config) error {
 	a.config = &config
-
-	// Save to new storage system
-	err := SaveSettings(config)
-	if err != nil {
-		fmt.Printf("Warning: Failed to save to storage system: %v\n", err)
-	}
-
-	// Keep backward compatibility with old config manager
 	return a.configManager.SaveConfig(a.config)
 }
 
@@ -449,39 +455,151 @@ func formatDuration(d time.Duration) string {
 
 // GetStatistics returns the current application statistics
 func (a *App) GetStatistics() Stats {
-	return GetStatistics()
+	return Stats{
+		TotalClips:     a.config.TotalClips,
+		LastClipTime:   a.config.LastClipTime,
+		SessionClips:   a.config.SessionClips,
+		TotalSize:      a.config.TotalSize,
+		StartTime:      a.config.StartTime,
+		LastUpdateTime: a.config.LastUpdateTime,
+	}
 }
 
 // GetStorageInfo returns information about the storage system
 func (a *App) GetStorageInfo() map[string]interface{} {
-	return GetStorageInfo()
+	info := make(map[string]interface{})
+	info["data_path"] = a.configManager.configPath
+	info["settings_file"] = a.configManager.configPath
+
+	// Check if files exist
+	if _, err := os.Stat(a.configManager.configPath); err == nil {
+		info["settings_file_exists"] = true
+		if stat, err := os.Stat(a.configManager.configPath); err == nil {
+			info["settings_file_size"] = stat.Size()
+			info["settings_file_modified"] = stat.ModTime()
+		}
+	} else {
+		info["settings_file_exists"] = false
+	}
+
+	info["total_clips"] = a.config.TotalClips
+	info["session_clips"] = a.config.SessionClips
+	info["total_size_mb"] = float64(a.config.TotalSize) / (1024 * 1024)
+
+	return info
 }
 
 // ExportData exports settings and statistics to a file
 func (a *App) ExportData(filePath string) error {
-	return ExportSettings(filePath)
+	data, err := json.MarshalIndent(a.config, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filePath, data, 0644)
 }
 
 // ImportData imports settings from a file
 func (a *App) ImportData(filePath string) error {
-	err := ImportSettings(filePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}
 
-	// Reload config after import
-	a.config = &Config{}
-	*a.config = GetSettings()
+	var importedConfig Config
+	err = json.Unmarshal(data, &importedConfig)
+	if err != nil {
+		return err
+	}
 
-	return nil
+	// Keep current session stats, only import settings and total stats
+	importedConfig.SessionClips = a.config.SessionClips
+	importedConfig.StartTime = a.config.StartTime
+	importedConfig.LastUpdateTime = time.Now()
+
+	a.config = &importedConfig
+	return a.configManager.SaveConfig(a.config)
 }
 
 // ResetSessionStats resets session-specific statistics
 func (a *App) ResetSessionStats() error {
-	return ResetSessionStats()
+	return a.configManager.ResetSessionStats(a.config)
 }
 
 // GetDataPath returns the application data directory path
 func (a *App) GetDataPath() string {
-	return GetDataPath()
+	return filepath.Dir(a.configManager.configPath)
+}
+
+// SetWindowsStartup enables or disables Windows startup
+func (a *App) SetWindowsStartup(enabled bool) error {
+	a.config.WindowsStartup = enabled
+
+	if enabled {
+		err := a.addToWindowsStartup()
+		if err != nil {
+			a.config.WindowsStartup = false // Revert on error
+			return fmt.Errorf("failed to add to Windows startup: %v", err)
+		}
+	} else {
+		err := a.removeFromWindowsStartup()
+		if err != nil {
+			return fmt.Errorf("failed to remove from Windows startup: %v", err)
+		}
+	}
+
+	return a.configManager.SaveConfig(a.config)
+}
+
+// addToWindowsStartup adds the application to Windows startup
+func (a *App) addToWindowsStartup() error {
+	// Get the current executable path
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %v", err)
+	}
+
+	// Open the Windows registry key for startup programs
+	key, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, registry.SET_VALUE)
+	if err != nil {
+		return fmt.Errorf("failed to open registry key: %v", err)
+	}
+	defer key.Close()
+
+	// Set the registry value to start the app on Windows startup
+	err = key.SetStringValue("AutoClipSend", exePath)
+	if err != nil {
+		return fmt.Errorf("failed to set registry value: %v", err)
+	}
+
+	return nil
+}
+
+// removeFromWindowsStartup removes the application from Windows startup
+func (a *App) removeFromWindowsStartup() error {
+	// Open the Windows registry key for startup programs
+	key, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, registry.SET_VALUE)
+	if err != nil {
+		return fmt.Errorf("failed to open registry key: %v", err)
+	}
+	defer key.Close()
+
+	// Delete the registry value
+	err = key.DeleteValue("AutoClipSend")
+	if err != nil && err != registry.ErrNotExist {
+		return fmt.Errorf("failed to delete registry value: %v", err)
+	}
+
+	return nil
+}
+
+// IsInWindowsStartup checks if the application is currently set to start with Windows
+func (a *App) IsInWindowsStartup() bool {
+	key, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, registry.QUERY_VALUE)
+	if err != nil {
+		return false
+	}
+	defer key.Close()
+
+	_, _, err = key.GetStringValue("AutoClipSend")
+	return err == nil
 }
