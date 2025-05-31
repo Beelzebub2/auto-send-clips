@@ -1,7 +1,7 @@
 # AutoClipSend
 
-A Golang Wails application that automatically monitors a folder for new video files and sends them to Discord via webhook with custom notifications.
-![alt text](image.png)
+A Golang Wails application that automatically monitors a folder for new video files and sends them to Discord via webhook with custom notifications.  
+![alt text](image.png) ![alt text](image-1.png)
 ## Features
 
 - 🎬 **Automatic Monitoring**: Watches your configured folder for new video files
