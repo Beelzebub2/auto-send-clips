@@ -7,6 +7,10 @@ on:
         description: 'Release version (e.g., v1.0.0)'
         required: true
         type: string
+      changes:
+        description: 'Summary of changes in this version'
+        required: true
+        type: string
 
 jobs:
   release-windows:
@@ -62,6 +66,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create ${{ github.event.inputs.version }} build/bin/autoclipsend.exe --title "AutoClipSend ${{ github.event.inputs.version }}" --notes "## AutoClipSend ${{ github.event.inputs.version }}
+            
+          ### 📝 Changes in this version
+          ${{ github.event.inputs.changes }}
             
           ### 🎬 Automatic Video File Monitor & Discord Sender
             
