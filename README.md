@@ -4,13 +4,15 @@ A Golang Wails application that automatically monitors a folder for new video fi
 
 ## Features
 
-- 🎬 **Automatic Monitoring**: Watches `E:\Highlights\Clips\Screen Recording` for new video files
+- 🎬 **Automatic Monitoring**: Watches your configured folder for new video files
 - 🔔 **Custom Notifications**: Shows a beautiful notification dialog in the bottom-right corner
 - 📤 **Discord Integration**: Sends files to Discord via webhook
 - 🎵 **Audio Extraction**: Option to extract and send audio only
-- 📏 **Size Management**: Automatically compresses files to stay under 10MB
+- 📏 **Size Management**: Automatically compresses files to stay under configured size limit
 - ⚙️ **Configurable**: Easy webhook setup through the UI
 - 🖥️ **System Tray**: Runs in the background with minimal UI
+- 💾 **Persistent Settings**: Settings and statistics are saved between sessions
+- 📊 **Statistics**: Tracks clips sent and other usage metrics
 
 ## Prerequisites
 
@@ -23,7 +25,7 @@ A Golang Wails application that automatically monitors a folder for new video fi
 ## Installation
 
 ### Option 1: Download Pre-built Release (Recommended)
-1. Go to the [Releases](../../releases) page
+1. Go to the [Releases](https://github.com/Beelzebub2/auto-send-clips/releases) page
 2. Download the latest `autoclipsend.exe`
 3. Place it in a folder of your choice
 4. Run the executable directly
@@ -37,31 +39,18 @@ A Golang Wails application that automatically monitors a folder for new video fi
    ```
 4. The executable will be created in `build\bin\autoclipsend.exe`
 
-## Releases
+## Releases and Updates
 
 ### 📦 Download Pre-built Executable
 
-You can download the latest pre-built executable from the [Releases](../../releases) page instead of building from source:
+You can download the latest pre-built executable from the [Releases](https://github.com/Beelzebub2/auto-send-clips/releases) page instead of building from source.
 
-1. Go to the [Releases](../../releases) page
-2. Download the latest `autoclipsend.exe`
-3. No build process required - just run the executable!
+### 🔄 Update Checking
 
-### 🚀 Creating Releases
+The application automatically checks for updates by comparing the current version with the latest release on GitHub:
 
-Releases are automatically built using GitHub Actions when triggered manually:
-
-1. Go to the **Actions** tab in the repository
-2. Select **"Release"** workflow
-3. Click **"Run workflow"**
-4. Enter the version (e.g., `v1.0.0`)
-5. The workflow will build the executable and create a new release
-
-The release workflow:
-- Builds the Windows executable with the specified version
-- Creates a GitHub release with the version tag
-- Uploads the executable as a release asset
-- Includes installation and usage instructions
+1. Click the download link to get the latest version
+2. Close the application before installing the update
 
 ## Setup
 
@@ -74,12 +63,11 @@ The release workflow:
 2. **Configure the Application**:
    - Run `autoclipsend.exe`
    - Paste your Discord webhook URL
+   - Set your preferred monitor folder path
+   - Configure other settings as needed
    - Click "Save Configuration"
 
-3. **Create the Monitor Folder** (if it doesn't exist):
-   ```
-   E:\Highlights\Clips\Screen Recording
-   ```
+3. **Create the Monitor Folder** (if it doesn't exist)
 
 ## Usage
 
@@ -105,8 +93,8 @@ The release workflow:
 
 ## File Size Management
 
-- Maximum file size: **10MB**
-- If a file exceeds 10MB, it will be automatically compressed
+- Default maximum file size: **10MB** (configurable)
+- If a file exceeds the size limit, it will be automatically compressed
 - Audio extraction reduces file size significantly
 - Compression maintains reasonable quality while meeting size limits
 
@@ -114,14 +102,24 @@ The release workflow:
 
 The application stores its configuration in:
 ```
-%USERPROFILE%\.autoclipsend\config.json
+%APPDATA%\AutoClipSend\settings.json
 ```
 
-You can manually edit this file to change:
+The settings include:
 - Monitor path
+- Discord webhook URL
 - Maximum file size
-- Check interval
-- Webhook URL
+- Audio extraction preference
+- Notification settings
+- Compression settings
+
+## Statistics
+
+The application tracks:
+- Total clips sent
+- Current session clips
+- Total data size
+- Uptime and usage metrics
 
 ## Troubleshooting
 
@@ -152,19 +150,26 @@ Error: Wails not found
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
 ```
 
+### Update Check Errors
+```
+Error checking for updates
+```
+**Solution**: Ensure you have internet connectivity and access to GitHub API
+
 ## Development
 
 To modify the application:
 
-1. **Frontend**: Edit `frontend/dist/index.html`
+1. **Frontend**: Edit files in the `frontend` directory
 2. **Backend**: Edit Go files (`app.go`, `main.go`, etc.)
-3. **Rebuild**: Run `build.bat`
+3. **Rebuild**: Run `build.bat` or use the Go build command with version flags
 
 ## Dependencies
 
 - [Wails v2](https://wails.io/) - Desktop app framework
 - [fsnotify](https://github.com/fsnotify/fsnotify) - File system notifications
 - FFmpeg - Video/audio processing
+- [systray](https://github.com/getlantern/systray) - System tray integration
 
 ## License
 
@@ -185,6 +190,7 @@ If you encounter issues:
 2. Ensure all prerequisites are installed
 3. Verify the monitor folder exists
 4. Test with a valid Discord webhook URL
+5. Check the [GitHub Issues](https://github.com/Beelzebub2/auto-send-clips/issues) page
 
 ---
 
