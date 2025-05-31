@@ -28,9 +28,6 @@ export namespace main {
 	    monitor_path: string;
 	    max_file_size: number;
 	    check_interval: number;
-	    audio_extraction: boolean;
-	    show_notifications: boolean;
-	    auto_compress: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -43,9 +40,6 @@ export namespace main {
 	        this.monitor_path = source["monitor_path"];
 	        this.max_file_size = source["max_file_size"];
 	        this.check_interval = source["check_interval"];
-	        this.audio_extraction = source["audio_extraction"];
-	        this.show_notifications = source["show_notifications"];
-	        this.auto_compress = source["auto_compress"];
 	    }
 	}
 	export class Stats {
