@@ -11,6 +11,9 @@ on:
 jobs:
   release-windows:
     runs-on: windows-latest
+    # Add required permissions for creating releases
+    permissions:
+      contents: write
     
     steps:
       - name: Checkout code
@@ -54,52 +57,35 @@ jobs:
           )
         shell: cmd
 
-      - name: Create release
-        id: create_release
-        uses: actions/create-release@v1
+      - name: Create release and upload assets
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.event.inputs.version }}
-          release_name: AutoClipSend ${{ github.event.inputs.version }}
-          body: |
-            ## AutoClipSend ${{ github.event.inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${{ github.event.inputs.version }} build/bin/autoclipsend.exe --title "AutoClipSend ${{ github.event.inputs.version }}" --notes "## AutoClipSend ${{ github.event.inputs.version }}
             
-            ### 🎬 Automatic Video File Monitor & Discord Sender
+          ### 🎬 Automatic Video File Monitor & Discord Sender
             
-            **Features:**
-            - Monitors folder for new video files
-            - Sends files to Discord via webhook
-            - Custom notification system
-            - Audio extraction option
-            - Automatic file compression
+          **Features:**
+          - Monitors folder for new video files
+          - Sends files to Discord via webhook
+          - Custom notification system
+          - Audio extraction option
+          - Automatic file compression
             
-            ### 📋 Prerequisites
-            - Windows 10/11
-            - FFmpeg (for video processing)
-            - Discord webhook URL
+          ### 📋 Prerequisites
+          - Windows 10/11
+          - FFmpeg (for video processing)
+          - Discord webhook URL
             
-            ### 🚀 Quick Start
-            1. Download `autoclipsend.exe` below
-            2. Install FFmpeg and add to PATH
-            3. Run the application
-            4. Configure your Discord webhook
-            5. Set monitor folder path
+          ### 🚀 Quick Start
+          1. Download `autoclipsend.exe` below
+          2. Install FFmpeg and add to PATH
+          3. Run the application
+          4. Configure your Discord webhook
+          5. Set monitor folder path
             
-            ### 📁 Default Monitor Path
-            `E:\Highlights\Clips\Screen Recording`
+          ### 📁 Default Monitor Path
+          `E:\Highlights\Clips\Screen Recording`
             
-            ---
-            **Full documentation:** [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)
-          draft: false
-          prerelease: false
-
-      - name: Upload Windows executable
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/bin/autoclipsend.exe
-          asset_name: autoclipsend.exe
-          asset_content_type: application/octet-stream
+          ---
+          **Full documentation:** [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)"
