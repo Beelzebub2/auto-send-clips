@@ -27,6 +27,7 @@ type Config struct {
 	CheckInterval         int    `json:"check_interval"`         // in seconds
 	StartupInitialization bool   `json:"startup_initialization"` // Whether to start monitoring on startup
 	WindowsStartup        bool   `json:"windows_startup"`        // Whether to start with Windows
+	RecursiveMonitoring   bool   `json:"recursive_monitoring"`   // Whether to monitor subfolders recursively
 
 	// Statistics
 	Stats
@@ -68,6 +69,7 @@ func (cm *ConfigManager) LoadConfig() (*Config, error) {
 			CheckInterval:         2,
 			StartupInitialization: true,  // Default to enabled
 			WindowsStartup:        false, // Default to disabled
+			RecursiveMonitoring:   false, // Default to disabled
 			Stats: Stats{
 				TotalClips:     0,
 				SessionClips:   0,

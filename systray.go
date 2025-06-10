@@ -45,7 +45,7 @@ func (a *App) onTrayReady() {
 	systray.AddSeparator()
 
 	// Exit
-	mExit := systray.AddMenuItem("🚪 Exit", "Exit the application completely")
+	mExit := systray.AddMenuItem("❌ Exit", "Exit the application completely")
 
 	// Status update goroutine (refreshes status periodically)
 	go func() {

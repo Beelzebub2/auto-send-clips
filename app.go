@@ -144,8 +144,16 @@ func (a *App) startFileWatcher() {
 		return
 	}
 
+	// If recursive monitoring is enabled, add all subdirectories
+	if a.config.RecursiveMonitoring {
+		err = a.addSubdirectories(a.config.MonitorPath)
+		if err != nil {
+			fmt.Printf("Error adding subdirectories: %v\n", err)
+		}
+	}
+
 	a.isMonitoring = true
-	fmt.Printf("Watching directory: %s\n", a.config.MonitorPath)
+	fmt.Printf("Watching directory: %s (recursive: %v)\n", a.config.MonitorPath, a.config.RecursiveMonitoring)
 
 	for {
 		select {
@@ -154,6 +162,14 @@ func (a *App) startFileWatcher() {
 				return
 			}
 			if event.Op&fsnotify.Create == fsnotify.Create {
+				// If it's a directory and recursive monitoring is enabled, add it to watcher
+				if a.config.RecursiveMonitoring {
+					if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
+						a.watcher.Add(event.Name)
+						fmt.Printf("Added new directory to watch: %s\n", event.Name)
+					}
+				}
+
 				if a.isVideoFile(event.Name) {
 					fmt.Printf("New video file detected: %s\n", event.Name)
 					// Wait a bit for the file to be fully written
@@ -602,4 +618,22 @@ func (a *App) IsInWindowsStartup() bool {
 
 	_, _, err = key.GetStringValue("AutoClipSend")
 	return err == nil
+}
+
+// addSubdirectories recursively adds all subdirectories to the watcher
+func (a *App) addSubdirectories(root string) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() && path != root {
+			err = a.watcher.Add(path)
+			if err != nil {
+				fmt.Printf("Error adding subdirectory %s to watcher: %v\n", path, err)
+			} else {
+				fmt.Printf("Added subdirectory to watch: %s\n", path)
+			}
+		}
+		return nil
+	})
 }

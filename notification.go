@@ -44,5 +44,3 @@ func (n *NotificationApp) GetFileInfo() map[string]string {
 func (n *NotificationApp) CloseNotification() {
 	runtime.Quit(n.ctx)
 }
-
-// These notification functions are now handled directly in the App struct in app.go

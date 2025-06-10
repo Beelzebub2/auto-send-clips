@@ -9,7 +9,8 @@ const config = ref({
   maxFileSize: 20, // Store in MB directly
   checkInterval: 2,
   startupInitialization: true,
-  windowsStartup: false
+  windowsStartup: false,
+  recursiveMonitoring: false
 })
 
 const isLoading = ref(true)
@@ -17,8 +18,7 @@ const isSaving = ref(false)
 const error = ref('')
 
 const loadConfig = async () => {
-  try {
-    isLoading.value = true
+  try {    isLoading.value = true
     error.value = ''
     const appConfig = await GetConfig()
     config.value = {
@@ -27,7 +27,8 @@ const loadConfig = async () => {
       maxFileSize: appConfig.max_file_size || 10, // Backend stores in MB now
       checkInterval: appConfig.check_interval || 2,
       startupInitialization: appConfig.startup_initialization !== undefined ? appConfig.startup_initialization : true,
-      windowsStartup: appConfig.windows_startup !== undefined ? appConfig.windows_startup : false
+      windowsStartup: appConfig.windows_startup !== undefined ? appConfig.windows_startup : false,
+      recursiveMonitoring: appConfig.recursive_monitoring !== undefined ? appConfig.recursive_monitoring : false
     }
   } catch (err) {
     error.value = 'Failed to load configuration: ' + err.message
@@ -37,8 +38,7 @@ const loadConfig = async () => {
 }
 
 const saveConfig = async () => {
-  try {
-    isSaving.value = true
+  try {    isSaving.value = true
     error.value = ''
     const configToSave = {
       webhook_url: config.value.webhookURL,
@@ -46,7 +46,8 @@ const saveConfig = async () => {
       max_file_size: config.value.maxFileSize,
       check_interval: config.value.checkInterval,
       startup_initialization: config.value.startupInitialization,
-      windows_startup: config.value.windowsStartup
+      windows_startup: config.value.windowsStartup,
+      recursive_monitoring: config.value.recursiveMonitoring
     }
     
     await SaveConfig(configToSave)
@@ -120,6 +121,41 @@ watch(() => config.value.windowsStartup, async (newValue) => {
     config.value.windowsStartup = !newValue
   }
 })
+
+// Auto-save watchers for immediate configuration updates
+let saveTimeout = null
+
+const debouncedSave = () => {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout)
+  }
+  saveTimeout = setTimeout(async () => {
+    await saveConfig()
+  }, 500) // 500ms debounce
+}
+
+watch(() => config.value.webhookURL, debouncedSave, { deep: true })
+
+watch(() => config.value.monitorPath, async (newPath, oldPath) => {
+  // Only auto-save and update monitor path if the path actually changed and is not empty
+  if (newPath && newPath !== oldPath) {
+    await saveConfig()
+    await updateMonitorPath()
+  }
+}, { deep: true })
+
+watch(() => config.value.maxFileSize, debouncedSave, { deep: true })
+watch(() => config.value.checkInterval, debouncedSave, { deep: true })
+watch(() => config.value.startupInitialization, debouncedSave, { deep: true })
+
+// Watch for recursive monitoring changes and immediately restart the watcher
+watch(() => config.value.recursiveMonitoring, async () => {
+  await saveConfig()
+  // Restart the file watcher with the new recursive setting
+  if (config.value.monitorPath) {
+    await updateMonitorPath()
+  }
+}, { deep: true })
 </script>
 
 <template>  <div class="config-page">
@@ -174,15 +210,29 @@ watch(() => config.value.windowsStartup, async (newValue) => {
                 />
                 <button @click="selectFolder" class="folder-button">
                   <FolderOpen :size="16" />
-                  Browse
-                </button>
+                  Browse                </button>
               </div>
-              <button @click="updateMonitorPath" class="update-path-button" :disabled="!config.monitorPath">
-                <Save :size="16" />
-                Update Monitor Path
-              </button>
               <p class="form-help">
                 The folder path to monitor for new video files
+              </p>
+            </div>
+            
+            <div class="form-group">
+              <label for="recursiveMonitoring">Watch subfolders recursively</label>
+              <div class="toggle-container">
+                <label class="toggle-switch">
+                  <input
+                    id="recursiveMonitoring"
+                    v-model="config.recursiveMonitoring"
+                    type="checkbox"
+                    class="toggle-input"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label">{{ config.recursiveMonitoring ? 'Enabled' : 'Disabled' }}</span>
+              </div>
+              <p class="form-help">
+                Monitor all subfolders within the selected path for new video files
               </p>
             </div>
           </div>
@@ -257,21 +307,7 @@ watch(() => config.value.windowsStartup, async (newValue) => {
               <p class="form-help">
                 Automatically launch AutoClipSend when Windows starts
               </p>
-            </div></div>
-        </div>
-      </div>
-      
-      <!-- Save Button at the bottom -->
-      <div class="form-actions-bottom">
-        <button 
-          @click="saveConfig" 
-          class="save-button" 
-          :disabled="isSaving"
-        >
-          <Save :size="18" />
-          <span v-if="isSaving">Saving...</span>
-          <span v-else>Save Configuration</span>
-        </button>
+            </div></div>        </div>
       </div>
     </div>
 
@@ -350,14 +386,6 @@ watch(() => config.value.windowsStartup, async (newValue) => {
 
 .monitoring-settings {
   min-width: 0;
-}
-
-.form-actions-bottom {
-  display: flex;
-  justify-content: center;
-  padding: 1.5rem 0;
-  margin-top: 1rem;
-  border-top: 1px solid rgba(255, 140, 0, 0.2);
 }
 
 .config-section {
@@ -582,37 +610,6 @@ watch(() => config.value.windowsStartup, async (newValue) => {
   min-width: 60px;
 }
 
-.save-button {
-  padding: 0.8rem 1.5rem;
-  background: linear-gradient(135deg, #ff8c00 0%, #e67e22 100%);
-  border: none;
-  border-radius: 8px;
-  color: #1a1a1a;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  min-width: 180px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.save-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 140, 0, 0.3);
-}
-
-.save-button:disabled {
-  background: rgba(255, 140, 0, 0.3);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
 .loading-spinner {
   display: flex;
   flex-direction: column;
@@ -691,23 +688,13 @@ watch(() => config.value.windowsStartup, async (newValue) => {
   .advanced-settings {
     order: -1;
   }
-  
-  .config-section {
+    .config-section {
     padding: 1rem;
   }
-    .input-group {
+  
+  .input-group {
     flex-direction: column;
     gap: 0.5rem;
-  }
-  
-  .form-actions-bottom {
-    padding: 1rem 0;
-    margin-top: 0.5rem;
-  }
-  
-  .save-button {
-    min-width: auto;
-    width: 100%;
   }
 }
 </style>
