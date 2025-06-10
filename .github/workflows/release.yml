@@ -67,11 +67,6 @@ jobs:
         run: |
           gh release create ${{ github.event.inputs.version }} build/bin/autoclipsend.exe --title "AutoClipSend ${{ github.event.inputs.version }}" --notes "## AutoClipSend ${{ github.event.inputs.version }}
             
-          ### 📝 Changes in this version
-          ${{ github.event.inputs.changes }}
-            
-          ### 🎬 Automatic Video File Monitor & Discord Sender
-            
           ### 📋 Prerequisites
           - Windows 10/11
           - FFmpeg (for video processing)
@@ -83,9 +78,6 @@ jobs:
           3. Run the application
           4. Configure your Discord webhook
           5. Set monitor folder path
-            
-          ### 📁 Default Monitor Path
-          `E:\Highlights\Clips\Screen Recording`
             
           ---
           **Full documentation:** [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)"
