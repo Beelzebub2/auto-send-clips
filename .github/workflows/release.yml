@@ -72,13 +72,6 @@ jobs:
             
           ### 🎬 Automatic Video File Monitor & Discord Sender
             
-          **Features:**
-          - Monitors folder for new video files
-          - Sends files to Discord via webhook
-          - Custom notification system
-          - Audio extraction option
-          - Automatic file compression
-            
           ### 📋 Prerequisites
           - Windows 10/11
           - FFmpeg (for video processing)
