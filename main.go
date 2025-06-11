@@ -2,12 +2,14 @@ package main
 
 import (
 	"embed"
-	"fmt"
 	"os/exec"
 
 	win "golang.org/x/sys/windows"
 
+	applogger "autoclipsend/logger"
+
 	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
@@ -24,15 +26,27 @@ var version = "dev"
 
 // main is the entry point of the application
 func main() {
+	// Initialize logger
+	if err := applogger.Init(); err != nil {
+		// If we can't initialize the logger, we still want to show this error
+		displayAlreadyRunningNotification()
+		return
+	}
+	defer applogger.Close()
+
+	// Log application startup
+	applogger.Info("Starting AutoClipSend version %s", version)
+
 	// Prevent multiple instances using a named mutex
 	mutexName, _ := win.UTF16PtrFromString("Global\\AutoClipSendMutex")
 	handle, err := win.CreateMutex(nil, false, mutexName)
 	if err != nil {
-		fmt.Println("Error creating mutex:", err)
+		applogger.Error("Error creating mutex: %v", err)
 		return
 	}
 	lastErr := win.GetLastError()
 	if lastErr == win.ERROR_ALREADY_EXISTS {
+		applogger.Warn("Application instance already running")
 		displayAlreadyRunningNotification()
 		return
 	}
@@ -63,11 +77,13 @@ func main() {
 			BackdropType:         windows.Mica,
 			Theme:                windows.SystemDefault, // Use system theme
 		},
+		LogLevel: logger.ERROR, // Only show errors, suppress warnings and below
 	})
 
 	if err != nil {
-		println("Error:", err.Error())
+		applogger.Error("Application error: %v", err)
 	}
+	applogger.Info("Application shutdown complete")
 }
 
 // displayAlreadyRunningNotification shows a Windows notification if app is already running

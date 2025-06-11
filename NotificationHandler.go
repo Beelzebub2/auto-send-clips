@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
 	"time"
+
+	"autoclipsend/logger"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -16,6 +19,7 @@ type NotificationHandler struct {
 
 // NewNotificationHandler creates a new notification handler
 func NewNotificationHandler(app *App) *NotificationHandler {
+	logger.Debug("Creating new notification handler")
 	return &NotificationHandler{
 		app: app,
 	}
@@ -25,11 +29,11 @@ func NewNotificationHandler(app *App) *NotificationHandler {
 func (nh *NotificationHandler) SendVideoNotification(fileName, filePath string) {
 	// Exit early if context is nil
 	if nh.app.ctx == nil {
-		fmt.Println("ERROR: Cannot send notification - context is nil")
+		logger.Error("Cannot send notification - context is nil")
 		return
 	}
 
-	fmt.Printf("SendVideoNotification: Sending notification for %s\n", fileName)
+	logger.Info("Sending video notification for file: %s", fileName)
 
 	// Define the payload
 	payload := map[string]string{
@@ -39,10 +43,10 @@ func (nh *NotificationHandler) SendVideoNotification(fileName, filePath string) 
 
 	// First, ensure the window is visible
 	nh.app.ShowFromTray()
-	time.Sleep(500 * time.Millisecond) // Increased wait time	// Log before emitting event
-	fmt.Println("About to emit newVideoDetected event with payload:", payload)
+	time.Sleep(500 * time.Millisecond) // Increased wait time
+
+	logger.Debug("Emitting newVideoDetected event with payload: %+v", payload)
 	// Emit the event multiple times with delays to ensure it's caught
-	fmt.Printf("Emitting newVideoDetected event\n")
 	wailsRuntime.EventsEmit(nh.app.ctx, "newVideoDetected", payload)
 	time.Sleep(200 * time.Millisecond)
 
@@ -56,21 +60,20 @@ func (nh *NotificationHandler) SendVideoNotification(fileName, filePath string) 
 // TestNotification sends a test notification
 func (nh *NotificationHandler) TestNotification() {
 	if nh.app.ctx == nil {
-		fmt.Println("ERROR: Cannot send test notification - context is nil")
+		logger.Error("Cannot send test notification - context is nil")
 		return
 	}
 
-	fmt.Println("Sending test notification")
+	logger.Info("Sending test notification")
 	nh.SendVideoNotification("TestVideo.mp4", "C:\\Test\\TestVideo.mp4")
 }
 
 // Notify sends a desktop notification using the appropriate method based on the OS
 func (nh *NotificationHandler) Notify(title, message string) {
 	if nh.app.ctx == nil {
-		fmt.Println("ERROR: Cannot send notification - context is nil")
+		logger.Error("Cannot send notification - context is nil")
 		return
 	}
-
 	// Check the OS and use the appropriate command
 	switch runtime.GOOS {
 	case "windows":
@@ -81,13 +84,13 @@ func (nh *NotificationHandler) Notify(title, message string) {
 		exec.Command("osascript", "-e", fmt.Sprintf("display notification \"%s\" with title \"%s\"", message, title)).Run()
 	default:
 		// Fallback for other OSes (Linux, etc.), or you can add specific commands for them
-		fmt.Printf("Notify not implemented for this OS: %s\n", runtime.GOOS)
+		logger.Warn("Notify not implemented for this OS: %s", runtime.GOOS)
 	}
 }
 
 // SendSystemNotification sends a system notification
 func (nh *NotificationHandler) SendSystemNotification(title, message string) error {
-	fmt.Printf("Sending system notification: %s - %s\n", title, message)
+	logger.Info("Sending system notification: %s - %s", title, message)
 
 	switch runtime.GOOS {
 	case "windows":
@@ -97,7 +100,7 @@ func (nh *NotificationHandler) SendSystemNotification(title, message string) err
 	case "linux":
 		return nh.sendLinuxNotification(title, message)
 	default:
-		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+		return errors.New("unsupported operating system: " + runtime.GOOS)
 	}
 }
 
@@ -136,14 +139,13 @@ func (nh *NotificationHandler) sendLinuxNotification(title, message string) erro
 func (nh *NotificationHandler) SendVideoSystemNotification(fileName, filePath string) {
 	title := "AutoClipSend - New Video Detected"
 	message := fmt.Sprintf("New video detected: %s\nClick to view in app.", fileName)
-
 	err := nh.SendSystemNotification(title, message)
 	if err != nil {
-		fmt.Printf("Failed to send system notification: %v\n", err)
+		logger.Error("Failed to send system notification: %v", err)
 		// Fallback to in-app notification
 		nh.SendVideoNotification(fileName, filePath)
 	} else {
-		fmt.Printf("System notification sent for: %s\n", fileName)
+		logger.Info("System notification sent for: %s", fileName)
 		// Still emit the event for the app to handle internally if needed
 		if nh.app.ctx != nil {
 			payload := map[string]string{

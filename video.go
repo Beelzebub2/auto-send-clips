@@ -1,13 +1,15 @@
 package main
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
+
+	"autoclipsend/logger"
 )
 
 // isVideoFile checks if the file is a video file
@@ -26,12 +28,12 @@ func (a *App) isVideoFile(filename string) bool {
 func (a *App) handleNewVideo(filePath string) {
 	_, err := os.Stat(filePath)
 	if err != nil {
-		fmt.Printf("Error getting file info: %v\n", err)
+		logger.Error("Error getting file info: %v", err)
 		return
 	}
 
 	fileName := filepath.Base(filePath)
-	fmt.Printf("Triggering notification for: %s\n", fileName)
+	logger.Info("Triggering notification for: %s", fileName)
 	go a.ShowNotification(fileName, filePath)
 }
 
@@ -48,7 +50,8 @@ func (a *App) extractAudio(videoPath string) (string, error) {
 	outputPath := strings.TrimSuffix(videoPath, filepath.Ext(videoPath)) + "_audio.mp3"
 	cmd := exec.Command("ffmpeg", "-i", videoPath, "-vn", "-acodec", "mp3", "-ab", "128k", "-ar", "44100", "-y", outputPath)
 	if err := runFFmpegCommand(cmd); err != nil {
-		return "", fmt.Errorf("ffmpeg error: %v", err)
+		logger.Error("ffmpeg error: %v", err)
+		return "", errors.New("ffmpeg error")
 	}
 	return outputPath, nil
 }
@@ -63,7 +66,8 @@ func (a *App) compressFile(inputPath string, isAudio bool) (string, error) {
 		cmd = exec.Command("ffmpeg", "-i", inputPath, "-vcodec", "libx264", "-crf", "28", "-preset", "fast", "-vf", "scale=iw/2:ih/2", "-acodec", "aac", "-ab", "64k", "-y", outputPath)
 	}
 	if err := runFFmpegCommand(cmd); err != nil {
-		return "", fmt.Errorf("ffmpeg compression error: %v", err)
+		logger.Error("ffmpeg compression error: %v", err)
+		return "", errors.New("ffmpeg compression error")
 	}
 	return outputPath, nil
 }
