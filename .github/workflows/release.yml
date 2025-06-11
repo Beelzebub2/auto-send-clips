@@ -111,4 +111,4 @@ jobs:
             git add VERSION.json
             git commit -m "Update VERSION.json to ${{ github.event.inputs.version }}" || exit 0
             git push
-          shell: cmd
+        shell: cmd
