@@ -61,18 +61,17 @@ if %ERRORLEVEL% NEQ 0 (
 )
 echo.
 
-REM Create directory structure if missing
-if not exist "frontend\dist" (
-    echo Creating frontend directory structure...
-    mkdir "frontend\dist" 2>nul
-)
-if not exist "frontend\notification" (
-    mkdir "frontend\notification" 2>nul
-)
-
 REM Build the application
 echo Building application
 echo This may take a few minutes...
+
+cd frontend
+echo Running npm build...
+call npm run build
+cd ..
+echo Starting Wails dev server...
+call wails dev
+
 wails build -clean
 if %ERRORLEVEL% EQU 0 (
     echo.
