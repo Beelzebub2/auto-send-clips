@@ -321,38 +321,41 @@ watch(() => config.value.recursiveMonitoring, async () => {
 <style scoped>
 .config-page {
   height: 100vh;
-  overflow-y: auto;
-  padding: 1rem;
+  overflow: auto;
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
+  background: var(--bg-darkest);
 }
 
 .config-header {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(255, 140, 0, 0.3);
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;
 }
 
 .config-header h2 {
-  color: #ff8c00;
-  font-size: 1.2rem;
-  font-weight: 600;
+  color: var(--primary-color);
+  font-size: 1.3rem;
+  font-weight: 700;
   margin: 0;
+  text-shadow: 0 2px 8px rgba(255, 124, 61, 0.3);
 }
 
 .error-message {
-  background: rgba(255, 0, 0, 0.1);
-  border: 1px solid rgba(255, 0, 0, 0.3);
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(255, 107, 107, 0.05));
+  border: 1px solid rgba(255, 107, 107, 0.3);
   color: #ff6b6b;
-  padding: 0.75rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
   font-size: 0.9rem;
   flex-shrink: 0;
+  box-shadow: var(--shadow-small);
 }
 
 .config-form {
@@ -365,9 +368,10 @@ watch(() => config.value.recursiveMonitoring, async () => {
 
 .config-grid {
   display: grid;
-  grid-template-columns: 1fr 350px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
   flex: 1;
+  align-content: start;
 }
 
 .config-column {
@@ -389,41 +393,62 @@ watch(() => config.value.recursiveMonitoring, async () => {
 }
 
 .config-section {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 12px;
-  padding: 1.25rem;
-  border: 1px solid rgba(255, 140, 0, 0.2);
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
+  background: var(--bg-cards);
+  border-radius: 16px;
+  padding: 1.5rem;
+  border: 1px solid var(--border-default);
+  backdrop-filter: blur(20px);
+  transition: var(--transition-smooth);
+  box-shadow: var(--shadow-small);
+  position: relative;
+  overflow: hidden;
+}
+
+.config-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-light));
+  opacity: 0;
+  transition: var(--transition-smooth);
 }
 
 .config-section:hover {
-  border-color: rgba(255, 140, 0, 0.4);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(255, 140, 0, 0.1);
+  border-color: var(--border-accent);
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: var(--shadow-large);
+  background: var(--bg-elements);
+}
+
+.config-section:hover::before {
+  opacity: 1;
 }
 
 .config-section.primary {
-  border-color: rgba(255, 140, 0, 0.3);
+  border-color: var(--border-accent);
 }
 
 .config-section.secondary {
-  border-color: rgba(138, 43, 226, 0.3);
-  background: rgba(138, 43, 226, 0.05);
+  border-color: rgba(138, 43, 226, 0.4);
+  background: linear-gradient(135deg, var(--bg-cards), rgba(138, 43, 226, 0.05));
 }
 
 .config-section.secondary:hover {
-  border-color: rgba(138, 43, 226, 0.5);
+  border-color: rgba(138, 43, 226, 0.6);
+  box-shadow: 0 8px 32px rgba(138, 43, 226, 0.2);
 }
 
 .config-section h3 {
-  color: #ffffff;
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 1.2rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
 .form-group {
@@ -679,22 +704,33 @@ watch(() => config.value.recursiveMonitoring, async () => {
 }
 
 /* Responsive design */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .config-grid {
     grid-template-columns: 1fr;
     gap: 1rem;
   }
   
-  .advanced-settings {
-    order: -1;
-  }
-    .config-section {
+  .config-section {
     padding: 1rem;
   }
   
   .input-group {
     flex-direction: column;
     gap: 0.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .config-page {
+    padding: 1rem;
+  }
+  
+  .config-grid {
+    gap: 0.75rem;
+  }
+  
+  .config-section {
+    padding: 0.75rem;
   }
 }
 </style>
