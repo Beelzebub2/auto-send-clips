@@ -150,35 +150,23 @@ echo Build date: %BUILD_DATE%
 REM Build with version information embedded
 wails build -clean -ldflags "-X autoclipsend/version.Version=%VERSION% -X autoclipsend/version.Commit=%COMMIT% -X autoclipsend/version.Date=%BUILD_DATE%"
 
-REM Copy VERSION.json to build directory so the app can read it
-if exist "VERSION.json" (
-    echo Copying VERSION.json to build directory...
-    copy "VERSION.json" "build\bin\VERSION.json" >nul
-    if %ERRORLEVEL% EQU 0 (
-        echo ✓ VERSION.json copied successfully
-    ) else (
-        echo ⚠ Warning: Failed to copy VERSION.json
-    )
-)
-
-if %ERRORLEVEL% EQU 0 (    echo.
+if %ERRORLEVEL% EQU 0 (
+    echo.
     echo ====================================
     echo        BUILD SUCCESSFUL! 🎉
     echo ====================================
     echo.
     echo Executable location: build\bin\autoclipsend.exe
-    echo VERSION.json location: build\bin\VERSION.json
     echo.
     echo Setup Instructions:
     echo 1. Ensure FFmpeg is installed and in your PATH
     echo 2. Create the folder: E:\Highlights\Clips\Screen Recording
     echo 3. Get your Discord webhook URL
     echo 4. Run the application and configure the webhook
-    echo 5. Keep VERSION.json in the same directory as the executable
     echo.
     echo The application will run in the background and monitor
     echo the folder for new video files automatically.
-    echo The VERSION.json file is used for version checking and updates.
+    echo Version %VERSION% has been embedded in the executable.
     echo.
 ) else (
     echo.
