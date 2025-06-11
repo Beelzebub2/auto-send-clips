@@ -527,44 +527,18 @@ onMounted(() => {
 
 .config-section {
   background: var(--bg-cards);
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 1.5rem;
   border: 1px solid var(--border-default);
-  backdrop-filter: blur(20px);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   position: relative;
-  overflow: hidden;
-  transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1),
-              border-color 0.5s cubic-bezier(0.19, 1, 0.22, 1),
-              box-shadow 0.5s cubic-bezier(0.19, 1, 0.22, 1),
-              background 0.5s cubic-bezier(0.19, 1, 0.22, 1);
-}
-
-.config-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--primary-color), var(--primary-light));
-  opacity: 0;
-  transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+  transition: border-color 0.3s ease,
+              box-shadow 0.3s ease;
 }
 
 .config-section:hover {
   border-color: var(--border-light);
-  transform: translateY(-4px) scale(1.01);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 24px rgba(255, 124, 61, 0.1);
-  background: var(--bg-elements);
-  transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1),
-              border-color 0.5s cubic-bezier(0.19, 1, 0.22, 1),
-              box-shadow 0.5s cubic-bezier(0.19, 1, 0.22, 1),
-              background 0.5s cubic-bezier(0.19, 1, 0.22, 1);
-}
-
-.config-section:hover::before {
-  opacity: 1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .config-section.primary {
@@ -573,28 +547,22 @@ onMounted(() => {
 
 .config-section.secondary {
   border-color: rgba(138, 43, 226, 0.4);
-  background: linear-gradient(135deg, var(--bg-cards), rgba(138, 43, 226, 0.05));
 }
 
 .config-section.secondary:hover {
   border-color: rgba(138, 43, 226, 0.6);
-  box-shadow: 0 8px 32px rgba(138, 43, 226, 0.2);
 }
 
 .config-section h3 svg {
   color: var(--primary-color);
-  filter: drop-shadow(0 2px 4px rgba(255, 124, 61, 0.3));
-  transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+  transition: color 0.3s ease;
 }
 
 .config-section:hover h3 svg {
-  animation: bounce 1.5s infinite cubic-bezier(0.19, 1, 0.22, 1);
+  color: var(--primary-light);
 }
 
-@keyframes bounce {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-3px) scale(1.05); }
-}
+
 
 .form-group {
   margin-bottom: 1rem;
@@ -622,15 +590,14 @@ onMounted(() => {
   border-radius: 6px;
   color: #ffffff;
   font-size: 0.85rem;
-  transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .form-input:focus {
   outline: none;
   border-color: #ff8c00;
-  box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.2), 0 4px 8px rgba(0, 0, 0, 0.3);
-  transform: translateY(-1px);
+  box-shadow: 0 0 0 2px rgba(255, 140, 0, 0.2);
   background: rgba(0, 0, 0, 0.6);
 }
 
@@ -655,26 +622,22 @@ onMounted(() => {
   color: #1a1a1a;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+  transition: background-color 0.3s ease, transform 0.2s ease;
   white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 0.3rem;
   font-size: 0.8rem;
-  filter: drop-shadow(0 2px 4px rgba(255, 124, 61, 0.3));
 }
 
 .test-button:hover, .update-button:hover, .folder-button:hover, .update-path-button:hover {
   background: #e67e22;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 16px rgba(255, 124, 61, 0.2);
+  transform: translateY(-1px);
 }
 
 .test-button:disabled, .update-button:disabled, .update-path-button:disabled {
   background: rgba(255, 140, 0, 0.3);
   cursor: not-allowed;
-  transform: none;
-  filter: none;
 }
 
 .folder-button {
@@ -683,8 +646,7 @@ onMounted(() => {
 
 .folder-button:hover {
   background: #1976d2;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 16px rgba(33, 150, 243, 0.2);
+  transform: translateY(-1px);
 }
 
 .update-path-button {
@@ -696,8 +658,7 @@ onMounted(() => {
 
 .update-path-button:hover {
   background: #45a049;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 16px rgba(76, 175, 80, 0.2);
+  transform: translateY(-1px);
 }
 
 .form-help {
@@ -755,9 +716,9 @@ onMounted(() => {
   bottom: 0;
   background-color: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+  transition: all 0.3s ease;
   border-radius: 12px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .toggle-slider:before {
@@ -768,25 +729,18 @@ onMounted(() => {
   left: 2px;
   bottom: 2px;
   background-color: #ffffff;
-  transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+  transition: all 0.3s ease;
   border-radius: 50%;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  transform: scale(1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .toggle-input:checked + .toggle-slider {
   background-color: #ff8c00;
   border-color: #ff8c00;
-  box-shadow: 0 0 12px rgba(255, 140, 0, 0.4);
 }
 
 .toggle-input:checked + .toggle-slider:before {
-  transform: translateX(26px) scale(1.1);
-}
-
-.toggle-slider:hover {
-  box-shadow: 0 0 8px rgba(255, 140, 0, 0.3);
-  transform: scale(1.02);
+  transform: translateX(26px);
 }
 
 .toggle-label {
@@ -910,7 +864,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  background: linear-gradient(135deg, var(--bg-elements), var(--bg-interactive));
+  background: var(--bg-elements);
   border-radius: 12px;
   border: 1px solid var(--border-default);
 }
@@ -919,7 +873,6 @@ onMounted(() => {
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--primary-color);
-  text-shadow: 0 1px 3px rgba(255, 124, 61, 0.3);
 }
 
 .version-toggle {
@@ -929,7 +882,7 @@ onMounted(() => {
   padding: 0.5rem 1rem;
   border-radius: 8px;
   cursor: pointer;
-  transition: var(--transition-smooth);
+  transition: all 0.3s ease;
   font-size: 0.875rem;
   font-weight: 500;
 }
@@ -938,7 +891,6 @@ onMounted(() => {
   background: var(--bg-elements);
   color: var(--primary-color);
   border-color: var(--border-accent);
-  transform: translateY(-1px);
 }
 
 .version-details {
