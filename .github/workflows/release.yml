@@ -19,6 +19,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Update VERSION.json
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          # Remove 'v' prefix if present
+          $cleanVersion = $version -replace '^v', ''
+          
+          # Create version object
+          $versionObj = @{
+            version = $cleanVersion
+          }
+          
+          # Convert to JSON and write to file
+          $versionObj | ConvertTo-Json | Set-Content -Path "VERSION.json"
+          
+          Write-Host "Updated VERSION.json with version: $cleanVersion"
+          Get-Content "VERSION.json"
+        shell: powershell
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -43,25 +61,42 @@ jobs:
         working-directory: frontend
 
       - name: Build application with version
-        run: wails build -platform windows/amd64 -ldflags "-X main.version=${{ github.event.inputs.version }}"
-        shell: cmd
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          $commit = git rev-parse --short HEAD
+          $buildDate = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ")
+          
+          Write-Host "Building with version: $version"
+          Write-Host "Build commit: $commit"
+          Write-Host "Build date: $buildDate"
+          
+          wails build -platform windows/amd64 -ldflags "-X autoclipsend/version.Version=$version -X autoclipsend/version.Commit=$commit -X autoclipsend/version.Date=$buildDate"
+        shell: powershell
+
+      - name: Copy VERSION.json to build directory
+        run: |
+          Copy-Item "VERSION.json" "build\bin\VERSION.json"
+          Write-Host "Copied VERSION.json to build directory"
+        shell: powershell
 
       - name: Verify build
         run: |
-          if exist "build\bin\autoclipsend.exe" (
-            echo "✅ Build successful - binary created"
-            dir "build\bin\autoclipsend.exe"
-          ) else (
-            echo "❌ Build failed - binary not found"
+          if (Test-Path "build\bin\autoclipsend.exe") {
+            Write-Host "✅ Build successful - binary created"
+            Get-Item "build\bin\autoclipsend.exe" | Format-List
+            Write-Host "VERSION.json contents:"
+            Get-Content "build\bin\VERSION.json"
+          } else {
+            Write-Host "❌ Build failed - binary not found"
             exit 1
-          )
-        shell: cmd
+          }
+        shell: powershell
 
       - name: Create release and upload assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create ${{ github.event.inputs.version }} build/bin/autoclipsend.exe --title "AutoClipSend ${{ github.event.inputs.version }}" --notes "## AutoClipSend ${{ github.event.inputs.version }}
+          gh release create ${{ github.event.inputs.version }} build/bin/autoclipsend.exe build/bin/VERSION.json --title "AutoClipSend ${{ github.event.inputs.version }}" --notes "## AutoClipSend ${{ github.event.inputs.version }}
             
           ### 📋 Prerequisites
           - Windows 10/11
@@ -69,7 +104,7 @@ jobs:
           - Discord webhook URL
             
           ### 🚀 Quick Start
-          1. Download `autoclipsend.exe` below
+          1. Download `autoclipsend.exe` and `VERSION.json` below
           2. Install FFmpeg and add to PATH
           3. Run the application
           4. Configure your Discord webhook
@@ -77,3 +112,12 @@ jobs:
             
           ---
           **Full documentation:** [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)"
+
+      - name: Commit updated VERSION.json
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add VERSION.json
+          git commit -m "Update VERSION.json to ${{ github.event.inputs.version }}" || exit 0
+          git push
+        shell: cmd

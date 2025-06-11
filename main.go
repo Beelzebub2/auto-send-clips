@@ -7,6 +7,7 @@ import (
 	win "golang.org/x/sys/windows"
 
 	applogger "autoclipsend/logger"
+	"autoclipsend/version"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -21,9 +22,6 @@ var assets embed.FS
 //go:embed icon.ico
 var icon []byte
 
-// Version can be set at build time using -ldflags "-X main.version=v1.0.0"
-var version = "dev"
-
 // main is the entry point of the application
 func main() {
 	// Initialize logger
@@ -35,7 +33,7 @@ func main() {
 	defer applogger.Close()
 
 	// Log application startup
-	applogger.Info("Starting AutoClipSend version %s", version)
+	applogger.Info("Starting AutoClipSend version %s", version.FormatVersion())
 
 	// Prevent multiple instances using a named mutex
 	mutexName, _ := win.UTF16PtrFromString("Global\\AutoClipSendMutex")

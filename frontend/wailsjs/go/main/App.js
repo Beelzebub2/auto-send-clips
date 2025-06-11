@@ -6,12 +6,20 @@ export function BringToFront() {
   return window['go']['main']['App']['BringToFront']();
 }
 
+export function CheckForUpdates() {
+  return window['go']['main']['App']['CheckForUpdates']();
+}
+
 export function ExportData(arg1) {
   return window['go']['main']['App']['ExportData'](arg1);
 }
 
 export function GetAppStatus() {
   return window['go']['main']['App']['GetAppStatus']();
+}
+
+export function GetBuildInfo() {
+  return window['go']['main']['App']['GetBuildInfo']();
 }
 
 export function GetConfig() {
@@ -40,6 +48,10 @@ export function GetUptime() {
 
 export function GetVersion() {
   return window['go']['main']['App']['GetVersion']();
+}
+
+export function GetVersionInfo() {
+  return window['go']['main']['App']['GetVersionInfo']();
 }
 
 export function HandleWindowClose() {
@@ -72,6 +84,10 @@ export function Minimize() {
 
 export function MinimizeToTray() {
   return window['go']['main']['App']['MinimizeToTray']();
+}
+
+export function OpenUpdateURL(arg1) {
+  return window['go']['main']['App']['OpenUpdateURL'](arg1);
 }
 
 export function ResetSessionStats() {

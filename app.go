@@ -9,11 +9,13 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"time"
 
 	"autoclipsend/logger"
+	"autoclipsend/version"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -386,7 +388,7 @@ func (a *App) GetUptime() string {
 
 // GetVersion returns the application version
 func (a *App) GetVersion() string {
-	return version
+	return version.FormatVersion()
 }
 
 // GetAppStatus returns the current application status
@@ -395,14 +397,13 @@ func (a *App) GetAppStatus() AppStatus {
 
 	// Get statistics from config
 	stats := a.GetStatistics()
-
 	return AppStatus{
 		Uptime:       formatDuration(uptime),
 		IsMonitoring: a.isMonitoring,
 		MonitorPath:  a.config.MonitorPath,
 		VideosSent:   stats.TotalClips,   // Use total clips from storage
 		AudiosSent:   stats.SessionClips, // Use session clips for audio count
-		Version:      version,
+		Version:      version.FormatVersion(),
 	}
 }
 
@@ -651,4 +652,32 @@ func (a *App) addSubdirectories(root string) error {
 		}
 		return nil
 	})
+}
+
+// GetVersionInfo returns detailed version information
+func (a *App) GetVersionInfo() map[string]string {
+	return version.GetDetailedVersionInfo()
+}
+
+// GetBuildInfo returns the build information
+func (a *App) GetBuildInfo() version.BuildInfo {
+	return version.GetBuildInfo()
+}
+
+// CheckForUpdates checks for available updates on GitHub
+func (a *App) CheckForUpdates() version.UpdateInfo {
+	// GitHub repository for auto-send-clips
+	githubRepo := "Beelzebub2/auto-send-clips"
+	return version.CheckForUpdates(githubRepo)
+}
+
+// OpenUpdateURL opens the update URL in the default browser
+func (a *App) OpenUpdateURL(url string) error {
+	if url == "" {
+		return errors.New("no update URL provided")
+	}
+
+	// Use Windows-specific command to open URL
+	cmd := exec.Command("cmd", "/c", "start", url)
+	return cmd.Run()
 }

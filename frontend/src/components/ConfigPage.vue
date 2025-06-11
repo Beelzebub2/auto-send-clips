@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { Settings, Globe, Folder, FolderOpen, TestTube, Save } from 'lucide-vue-next'
-import { GetConfig, SaveConfig, UpdateMonitorPath, SelectFolder, SetWindowsStartup } from '../../wailsjs/go/main/App'
+import { Settings, Globe, Folder, FolderOpen, TestTube, Save, Download, ExternalLink, Info, RefreshCw } from 'lucide-vue-next'
+import { GetConfig, SaveConfig, UpdateMonitorPath, SelectFolder, SetWindowsStartup, GetVersionInfo, CheckForUpdates, OpenUpdateURL } from '../../wailsjs/go/main/App'
 
 const config = ref({
   webhookURL: '',
@@ -16,6 +16,12 @@ const isSaving = ref(false)
 const error = ref('')
 // Use a completely separate reactive property to control animations
 const animateNow = ref(false)
+
+// Version and update related variables
+const versionInfo = ref({})
+const updateInfo = ref(null)
+const isCheckingUpdates = ref(false)
+const showVersionDetails = ref(false)
 
 const loadConfig = async () => {
   try {
@@ -114,16 +120,6 @@ const testWebhook = async () => {
   }
 }
 
-onMounted(() => {
-  // Reset animations flag first
-  animateNow.value = false
-  
-  // Load config data with a small delay to ensure all reactivity is established
-  setTimeout(() => {
-    loadConfig()
-  }, 10)
-})
-
 // Watch for Windows startup setting changes and immediately apply them
 watch(() => config.value.windowsStartup, async (newValue) => {
   try {
@@ -169,6 +165,56 @@ watch(() => config.value.recursiveMonitoring, async () => {
     await updateMonitorPath()
   }
 }, { deep: true })
+
+// Version and update functions
+const loadVersionInfo = async () => {
+  try {
+    versionInfo.value = await GetVersionInfo()
+  } catch (err) {
+    console.error('Failed to load version info:', err)
+  }
+}
+
+const checkForUpdates = async () => {
+  isCheckingUpdates.value = true
+  try {
+    updateInfo.value = await CheckForUpdates()
+  } catch (err) {
+    console.error('Failed to check for updates:', err)
+    updateInfo.value = {
+      available: false,
+      error: 'Failed to check for updates: ' + err.message
+    }
+  } finally {
+    isCheckingUpdates.value = false
+  }
+}
+
+const openUpdateUrl = async () => {
+  if (updateInfo.value && updateInfo.value.releaseURL) {
+    try {
+      await OpenUpdateURL(updateInfo.value.releaseURL)
+    } catch (err) {
+      console.error('Failed to open update URL:', err)
+    }
+  }
+}
+
+const toggleVersionDetails = () => {
+  showVersionDetails.value = !showVersionDetails.value
+}
+
+// Load version info on mount
+onMounted(() => {
+  // Reset animations flag first
+  animateNow.value = false
+  
+  // Load config data and version info with a small delay
+  setTimeout(() => {
+    loadConfig()
+    loadVersionInfo()
+  }, 10)
+})
 </script>
 
 <template>  <div class="config-page">
@@ -336,13 +382,72 @@ watch(() => config.value.recursiveMonitoring, async () => {
                   </div>
                   <p class="form-help">
                     Automatically launch AutoClipSend when Windows starts
-                  </p>
+                  </p>                </div>
+              </div>
+            </transition>
+            
+            <!-- Version Information -->
+            <transition name="fade-slide-up" :duration="{ enter: 800, leave: 600 }" appear>
+              <div class="config-section info" v-if="animateNow">
+                <h3>
+                  <Info :size="18" />
+                  Version Information
+                </h3>
+                
+                <div class="version-display">
+                  <div class="version-main">
+                    <span class="version-number">{{ versionInfo.version || 'Loading...' }}</span>
+                    <button @click="toggleVersionDetails" class="version-toggle">
+                      <span v-if="!showVersionDetails">Show Details</span>
+                      <span v-else>Hide Details</span>
+                    </button>
+                  </div>
+                  
+                  <transition name="fade-slide-down">
+                    <div class="version-details" v-if="showVersionDetails">
+                      <div class="version-item">
+                        <strong>Build Date:</strong> {{ versionInfo.formattedDate || 'Unknown' }}
+                      </div>
+                      <div class="version-item">
+                        <strong>Commit:</strong> {{ versionInfo.shortCommit || 'Unknown' }}
+                      </div>
+                      <div class="version-item">
+                        <strong>Go Version:</strong> {{ versionInfo.goVersion || 'Unknown' }}
+                      </div>
+                    </div>
+                  </transition>
+                  
+                  <div class="update-section">
+                    <button @click="checkForUpdates" :disabled="isCheckingUpdates" class="btn-update">
+                      <RefreshCw :size="16" :class="{ 'spinning': isCheckingUpdates }" />
+                      {{ isCheckingUpdates ? 'Checking...' : 'Check for Updates' }}
+                    </button>
+                    
+                    <div v-if="updateInfo" class="update-info">
+                      <div v-if="updateInfo.available" class="update-available">
+                        <div class="update-message">
+                          <Download :size="16" />
+                          <span>Update Available: {{ updateInfo.latestVersion }}</span>
+                        </div>
+                        <button @click="openUpdateUrl" class="btn-download">
+                          <ExternalLink :size="16" />
+                          Download Update
+                        </button>
+                      </div>
+                      <div v-else-if="!updateInfo.error" class="update-current">
+                        <span>✅ You're running the latest version</span>
+                      </div>
+                      <div v-if="updateInfo.error" class="update-error">
+                        <span>⚠️ {{ updateInfo.error }}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </transition>
           </div>
         </div>
-      </div>    </transition>
+      </div></transition>
   </div>
 </template>
 
@@ -788,9 +893,393 @@ watch(() => config.value.recursiveMonitoring, async () => {
   .config-grid {
     gap: 0.75rem;
   }
-  
-  .config-section {
+    .config-section {
     padding: 0.75rem;
+  }
+}
+
+/* Version Information Styles */
+.version-display {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.version-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: linear-gradient(135deg, var(--bg-elements), var(--bg-interactive));
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+}
+
+.version-number {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  text-shadow: 0 1px 3px rgba(255, 124, 61, 0.3);
+}
+
+.version-toggle {
+  background: var(--bg-interactive);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.version-toggle:hover {
+  background: var(--bg-elements);
+  color: var(--primary-color);
+  border-color: var(--border-accent);
+  transform: translateY(-1px);
+}
+
+.version-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--bg-darkest);
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+}
+
+.version-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.version-item strong {
+  color: var(--text-secondary);
+  margin-right: 1rem;
+}
+
+.update-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.btn-update {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, var(--bg-elements), var(--bg-interactive));
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  font-weight: 600;
+  min-height: 42px;
+}
+
+.btn-update:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--bg-interactive), var(--bg-elements));
+  border-color: var(--border-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-medium);
+}
+
+.btn-update:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.update-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.update-available {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 8px;
+}
+
+.update-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.btn-download {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  border: none;
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  font-weight: 600;
+  align-self: flex-start;
+}
+
+.btn-download:hover {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+}
+
+.update-current {
+  padding: 0.75rem;
+  color: #22c55e;
+  font-weight: 500;
+  text-align: center;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 8px;
+}
+
+.update-error {
+  padding: 0.75rem;
+  color: #ef4444;
+  font-weight: 500;
+  text-align: center;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05));
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+}
+
+.fade-slide-down-enter-active,
+.fade-slide-down-leave-active {
+  transition: all 0.3s ease;
+}
+
+.fade-slide-down-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.fade-slide-down-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* Version Information Styles */
+.version-display {
+  background: linear-gradient(135deg, var(--bg-elements), var(--bg-interactive));
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid var(--border-default);
+}
+
+.version-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.version-number {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  text-shadow: 0 1px 3px rgba(255, 124, 61, 0.3);
+}
+
+.version-toggle {
+  background: var(--bg-interactive);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.version-toggle:hover {
+  background: var(--bg-elements);
+  border-color: var(--border-accent);
+  color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.version-details {
+  background: var(--bg-darkest);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border-default);
+}
+
+.version-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 0.9rem;
+}
+
+.version-item:last-child {
+  border-bottom: none;
+}
+
+.version-item strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.update-section {
+  border-top: 1px solid var(--border-default);
+  padding-top: 1.5rem;
+}
+
+.btn-update {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, var(--bg-interactive), var(--bg-elements));
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  padding: 0.75rem 1.25rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.btn-update:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--bg-elements), var(--bg-interactive));
+  border-color: var(--border-accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-medium);
+}
+
+.btn-update:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.update-info {
+  margin-top: 1rem;
+}
+
+.update-available {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.update-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: rgb(34, 197, 94);
+  font-weight: 600;
+}
+
+.btn-download {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, rgb(34, 197, 94), rgb(22, 163, 74));
+  border: none;
+  color: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.btn-download:hover {
+  background: linear-gradient(135deg, rgb(22, 163, 74), rgb(21, 128, 61));
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+}
+
+.update-current {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+  color: rgb(59, 130, 246);
+  font-weight: 600;
+}
+
+.update-error {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05));
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+  color: rgb(239, 68, 68);
+  font-weight: 500;
+}
+
+/* Mobile responsive adjustments for version section */
+@media (max-width: 768px) {
+  .update-available {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .btn-download {
+    justify-content: center;
+    width: 100%;
+  }
+  
+  .version-main {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+    text-align: center;
   }
 }
 </style>
