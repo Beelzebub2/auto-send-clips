@@ -73,19 +73,11 @@ jobs:
           wails build -platform windows/amd64 -ldflags "-X autoclipsend/version.Version=$version -X autoclipsend/version.Commit=$commit -X autoclipsend/version.Date=$buildDate"
         shell: powershell
 
-      - name: Copy VERSION.json to build directory
-        run: |
-          Copy-Item "VERSION.json" "build\bin\VERSION.json"
-          Write-Host "Copied VERSION.json to build directory"
-        shell: powershell
-
       - name: Verify build
         run: |
           if (Test-Path "build\bin\autoclipsend.exe") {
             Write-Host "✅ Build successful - binary created"
             Get-Item "build\bin\autoclipsend.exe" | Format-List
-            Write-Host "VERSION.json contents:"
-            Get-Content "build\bin\VERSION.json"
           } else {
             Write-Host "❌ Build failed - binary not found"
             exit 1
@@ -96,7 +88,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create ${{ github.event.inputs.version }} build/bin/autoclipsend.exe build/bin/VERSION.json --title "AutoClipSend ${{ github.event.inputs.version }}" --notes "## AutoClipSend ${{ github.event.inputs.version }}
+          gh release create ${{ github.event.inputs.version }} build/bin/autoclipsend.exe --title "AutoClipSend ${{ github.event.inputs.version }}" --notes "## AutoClipSend ${{ github.event.inputs.version }}
             
           ### 📋 Prerequisites
           - Windows 10/11
@@ -104,7 +96,7 @@ jobs:
           - Discord webhook URL
             
           ### 🚀 Quick Start
-          1. Download `autoclipsend.exe` and `VERSION.json` below
+          1. Download autoclipsend.exe below
           2. Install FFmpeg and add to PATH
           3. Run the application
           4. Configure your Discord webhook
@@ -118,6 +110,11 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add VERSION.json
-          git commit -m "Update VERSION.json to ${{ github.event.inputs.version }}" || exit 0
-          git push
+          if git diff --staged --quiet; then
+            echo "No changes to VERSION.json"
+          else
+            git commit -m "Update VERSION.json to ${{ github.event.inputs.version }}"
+            git push
+            echo "VERSION.json updated and pushed to repository"
+          fi
         shell: cmd

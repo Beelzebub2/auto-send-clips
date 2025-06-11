@@ -56,7 +56,7 @@ var (
 // GetBuildInfo returns the current build information
 func GetBuildInfo() BuildInfo {
 	info := BuildInfo{
-		Version:   getVersionFromFile(),
+		Version:   getVersion(),
 		Commit:    Commit,
 		Date:      Date,
 		GoVersion: GoVersion,
@@ -86,9 +86,21 @@ func GetBuildInfo() BuildInfo {
 	return info
 }
 
-// getVersionFromFile reads the version from VERSION.json file
+// getVersion returns the version, prioritizing build-time version over file
+func getVersion() string {
+	// If we have a build-time version (not dev), use it
+	if Version != "dev" && Version != "unknown" && Version != "" {
+		return Version
+	}
+
+	// For development, try to read from VERSION.json in the project root
+	return getVersionFromFile()
+}
+
+// getVersionFromFile reads the version from VERSION.json file (for development only)
 func getVersionFromFile() string {
-	// Try multiple locations for VERSION.json
+	// This is only used during development when Version = "dev"
+	// Try to find VERSION.json in the project root
 	var possiblePaths []string
 
 	// 1. Try current working directory first
@@ -96,16 +108,10 @@ func getVersionFromFile() string {
 		possiblePaths = append(possiblePaths, filepath.Join(cwd, "VERSION.json"))
 	}
 
-	// 2. Try executable directory
-	if execPath, err := os.Executable(); err == nil {
-		execDir := filepath.Dir(execPath)
-		possiblePaths = append(possiblePaths, filepath.Join(execDir, "VERSION.json"))
-	}
-
-	// 3. Try relative to current directory
+	// 2. Try relative to current directory (for development)
 	possiblePaths = append(possiblePaths, "VERSION.json")
 
-	// 4. Try in the root of the project (for development)
+	// 3. Try going up one directory (in case we're in a subdirectory)
 	possiblePaths = append(possiblePaths, filepath.Join("..", "VERSION.json"))
 
 	for _, versionFile := range possiblePaths {
@@ -117,11 +123,11 @@ func getVersionFromFile() string {
 		}
 	}
 
-	// Fallback to build-time version if file doesn't exist or is invalid
+	// Fallback to build-time version
 	return Version
 }
 
-// CheckForUpdates checks for newer releases by comparing local VERSION.json with the latest GitHub release
+// CheckForUpdates checks for newer releases by comparing local VERSION.json with remote VERSION.json
 func CheckForUpdates(githubRepo string) UpdateInfo {
 	current := GetBuildInfo()
 
@@ -136,8 +142,8 @@ func CheckForUpdates(githubRepo string) UpdateInfo {
 		return updateInfo
 	}
 
-	// Make request to GitHub API to get latest release
-	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", githubRepo)
+	// Fetch VERSION.json directly from GitHub repository (raw content)
+	url := fmt.Sprintf("https://raw.githubusercontent.com/%s/refs/heads/master/VERSION.json", githubRepo)
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
@@ -151,28 +157,26 @@ func CheckForUpdates(githubRepo string) UpdateInfo {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		updateInfo.Error = fmt.Sprintf("GitHub API returned status %d", resp.StatusCode)
+		updateInfo.Error = fmt.Sprintf("Failed to fetch VERSION.json: HTTP %d", resp.StatusCode)
 		return updateInfo
 	}
 
-	var release GitHubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		updateInfo.Error = fmt.Sprintf("Failed to parse GitHub response: %v", err)
+	var remoteVersion VersionFile
+	if err := json.NewDecoder(resp.Body).Decode(&remoteVersion); err != nil {
+		updateInfo.Error = fmt.Sprintf("Failed to parse remote VERSION.json: %v", err)
 		return updateInfo
 	}
 
-	// Skip drafts and pre-releases
-	if release.Draft || release.PreRelease {
-		updateInfo.Error = "Latest release is a draft or pre-release"
+	if remoteVersion.Version == "" {
+		updateInfo.Error = "Remote VERSION.json contains empty version"
 		return updateInfo
 	}
 
-	updateInfo.LatestVersion = release.TagName
-	updateInfo.ReleaseURL = release.HTMLURL
-	updateInfo.ReleaseNotes = release.Body
+	updateInfo.LatestVersion = remoteVersion.Version
+	updateInfo.ReleaseURL = fmt.Sprintf("https://github.com/%s/releases", githubRepo)
+	updateInfo.ReleaseNotes = fmt.Sprintf("Version %s is available", remoteVersion.Version)
 
-	// Compare the local VERSION.json version with the latest GitHub release
-	// The current version comes from VERSION.json, latest from GitHub API
+	// Compare the local VERSION.json version with the remote VERSION.json version
 	updateInfo.Available = isNewerVersion(updateInfo.LatestVersion, current.Version)
 
 	return updateInfo
