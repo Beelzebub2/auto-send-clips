@@ -127,3 +127,48 @@ export namespace main {
 
 }
 
+export namespace version {
+	
+	export class BuildInfo {
+	    version: string;
+	    commit: string;
+	    date: string;
+	    goVersion: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BuildInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.commit = source["commit"];
+	        this.date = source["date"];
+	        this.goVersion = source["goVersion"];
+	    }
+	}
+	export class UpdateInfo {
+	    available: boolean;
+	    latestVersion: string;
+	    currentVersion: string;
+	    releaseURL: string;
+	    releaseNotes: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.latestVersion = source["latestVersion"];
+	        this.currentVersion = source["currentVersion"];
+	        this.releaseURL = source["releaseURL"];
+	        this.releaseNotes = source["releaseNotes"];
+	        this.error = source["error"];
+	    }
+	}
+
+}
+
