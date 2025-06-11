@@ -103,18 +103,12 @@ jobs:
           5. Set monitor folder path
             
           ---
-          **Full documentation:** [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)"
-
+          **Full documentation:** [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)"      
       - name: Commit updated VERSION.json
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add VERSION.json
-          if git diff --staged --quiet; then
-            echo "No changes to VERSION.json"
-          else
-            git commit -m "Update VERSION.json to ${{ github.event.inputs.version }}"
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add VERSION.json
+            git commit -m "Update VERSION.json to ${{ github.event.inputs.version }}" || exit 0
             git push
-            echo "VERSION.json updated and pushed to repository"
-          fi
-        shell: cmd
+          shell: cmd
