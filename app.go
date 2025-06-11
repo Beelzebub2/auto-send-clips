@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
+
+	"autoclipsend/logger"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -48,7 +51,7 @@ func NewApp() *App {
 	// Load config from config manager
 	config, err := configManager.LoadConfig()
 	if err != nil {
-		fmt.Printf("Warning: Failed to load config: %v, using defaults\n", err)
+		logger.Warn("Failed to load config: %v, using defaults", err)
 		// Create default config if loading fails
 		config = &Config{
 			MonitorPath:           `E:\Highlights\Clips\Screen Recording`,
@@ -75,16 +78,16 @@ func NewApp() *App {
 
 	// Create notification handler after app is initialized
 	app.notificationHandler = NewNotificationHandler(app)
+	logger.Info("Application initialized with config: monitor_path=%s, max_file_size=%dMB",
+		config.MonitorPath, config.MaxFileSize)
 
 	return app
 }
 
-// startup is called when the app starts. The context here
-// can be used to call the frontend via the application binding.
+// startup is called when the app starts
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.isVisible = true
-
 	// Initialize the system tray first to ensure it's available
 	a.InitTray()
 
@@ -94,21 +97,20 @@ func (a *App) startup(ctx context.Context) {
 	}
 }
 
-// domReady is called when the DOM is ready, just before the frontend shows
+// domReady is called when the DOM is ready
 func (a *App) domReady(ctx context.Context) {
+	logger.Debug("DOM ready event received")
 	// Called when DOM is ready
 }
 
 // beforeClose is called when the window is trying to close
 func (a *App) beforeClose(ctx context.Context) bool {
-	fmt.Println("==========================================")
-	fmt.Println("beforeClose called - window is trying to close")
+	logger.Info("beforeClose called - window is trying to close")
 
 	// Just minimize to tray instead of closing
 	a.MinimizeToTray()
 
-	fmt.Println("Window minimized to tray, returning false to prevent app from closing")
-	fmt.Println("==========================================")
+	logger.Info("Window minimized to tray, returning false to prevent app from closing")
 
 	// Return false to prevent the application from closing
 	return false
@@ -130,7 +132,7 @@ func (a *App) startFileWatcher() {
 	var err error
 	a.watcher, err = fsnotify.NewWatcher()
 	if err != nil {
-		fmt.Printf("Error creating watcher: %v\n", err)
+		logger.Error("Error creating watcher: %v", err)
 		a.isMonitoring = false
 		return
 	}
@@ -139,21 +141,19 @@ func (a *App) startFileWatcher() {
 	// Add the directory to watch
 	err = a.watcher.Add(a.config.MonitorPath)
 	if err != nil {
-		fmt.Printf("Error adding path to watcher: %v\n", err)
+		logger.Error("Error adding path to watcher: %v", err)
 		a.isMonitoring = false
 		return
 	}
-
 	// If recursive monitoring is enabled, add all subdirectories
 	if a.config.RecursiveMonitoring {
 		err = a.addSubdirectories(a.config.MonitorPath)
 		if err != nil {
-			fmt.Printf("Error adding subdirectories: %v\n", err)
+			logger.Warn("Error adding subdirectories: %v", err)
 		}
 	}
-
 	a.isMonitoring = true
-	fmt.Printf("Watching directory: %s (recursive: %v)\n", a.config.MonitorPath, a.config.RecursiveMonitoring)
+	logger.Info("File monitoring started: path=%s recursive=%v", a.config.MonitorPath, a.config.RecursiveMonitoring)
 
 	for {
 		select {
@@ -166,12 +166,11 @@ func (a *App) startFileWatcher() {
 				if a.config.RecursiveMonitoring {
 					if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
 						a.watcher.Add(event.Name)
-						fmt.Printf("Added new directory to watch: %s\n", event.Name)
 					}
 				}
 
 				if a.isVideoFile(event.Name) {
-					fmt.Printf("New video file detected: %s\n", event.Name)
+					logger.Info("New video file detected: %s", event.Name)
 					// Wait a bit for the file to be fully written
 					time.Sleep(time.Duration(a.config.CheckInterval) * time.Second)
 					a.handleNewVideo(event.Name)
@@ -181,14 +180,14 @@ func (a *App) startFileWatcher() {
 			if !ok {
 				return
 			}
-			fmt.Printf("Watcher error: %v\n", err)
+			logger.Error("Watcher error: %v", err)
 		}
 	}
 }
 
 // ShowNotification triggers a notification for a new video
 func (a *App) ShowNotification(fileName, filePath string) {
-	fmt.Printf("ShowNotification called for: %s\n", fileName)
+	logger.Info("ShowNotification called for: %s", fileName)
 
 	// Use the dedicated notification handler
 	a.notificationHandler.SendVideoNotification(fileName, filePath)
@@ -205,11 +204,11 @@ func (a *App) GetFileSize(filePath string) (float64, error) {
 
 // HandleWindowClose is called from JavaScript to properly handle window close
 func (a *App) HandleWindowClose() {
-	fmt.Println("HandleWindowClose called from frontend")
+	logger.Debug("HandleWindowClose called from frontend")
 	// Just delegate to MinimizeToTray to ensure consistent behavior
-	fmt.Println("Minimizing to tray...")
+	logger.Debug("Minimizing to tray...")
 	a.MinimizeToTray()
-	fmt.Println("Finished minimizing to tray")
+	logger.Debug("Finished minimizing to tray")
 }
 
 // BringToFront brings the window to the front
@@ -241,13 +240,15 @@ func (a *App) Maximize() {
 // Moved from notification.go to app.go for correct method binding
 func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 	if a.config.WebhookURL == "" {
-		return fmt.Errorf("webhook URL not set")
+		logger.Error("webhook URL not set")
+		return errors.New("webhook URL not set")
 	}
 
 	// Check file size
 	_, err := os.Stat(filePath)
 	if err != nil {
-		return fmt.Errorf("error getting file info: %v", err)
+		logger.Error("error getting file info: %v", err)
+		return errors.New("error getting file info")
 	}
 
 	var finalPath string
@@ -257,7 +258,8 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 		// Extract audio from video
 		finalPath, err = a.extractAudio(filePath)
 		if err != nil {
-			return fmt.Errorf("error extracting audio: %v", err)
+			logger.Error("error extracting audio: %v", err)
+			return errors.New("error extracting audio")
 		}
 		cleanup = true
 		defer func() {
@@ -272,14 +274,16 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 	// Check final file size
 	finalInfo, err := os.Stat(finalPath)
 	if err != nil {
-		return fmt.Errorf("error getting final file info: %v", err)
+		logger.Error("error getting final file info: %v", err)
+		return errors.New("error getting final file info")
 	}
 
 	if finalInfo.Size() > a.config.MaxFileSize*1024*1024 {
 		// Compress the file
 		compressedPath, err := a.compressFile(finalPath, audioOnly)
 		if err != nil {
-			return fmt.Errorf("error compressing file: %v", err)
+			logger.Error("error compressing file: %v", err)
+			return errors.New("error compressing file")
 		}
 		finalPath = compressedPath
 		cleanup = true
@@ -302,7 +306,7 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 	} // Increment clip count using ConfigManager
 	err = a.configManager.IncrementClipCount(a.config, fileSize)
 	if err != nil {
-		fmt.Printf("Warning: Failed to update clip statistics: %v\n", err)
+		logger.Warn("Failed to update clip statistics: %v", err)
 	}
 
 	return nil
@@ -312,7 +316,8 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 func (a *App) sendFileToDiscord(filePath, customName string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return fmt.Errorf("error opening file: %v", err)
+		logger.Error("error opening file: %v", err)
+		return errors.New("error opening file")
 	}
 	defer file.Close()
 
@@ -323,12 +328,14 @@ func (a *App) sendFileToDiscord(filePath, customName string) error {
 	// Add the file
 	part, err := writer.CreateFormFile("file", filepath.Base(filePath))
 	if err != nil {
-		return fmt.Errorf("error creating form file: %v", err)
+		logger.Error("error creating form file: %v", err)
+		return errors.New("error creating form file")
 	}
 
 	_, err = io.Copy(part, file)
 	if err != nil {
-		return fmt.Errorf("error copying file: %v", err)
+		logger.Error("error copying file: %v", err)
+		return errors.New("error copying file")
 	}
 
 	// Add custom message if provided
@@ -342,13 +349,15 @@ func (a *App) sendFileToDiscord(filePath, customName string) error {
 
 	err = writer.Close()
 	if err != nil {
-		return fmt.Errorf("error closing writer: %v", err)
+		logger.Error("error closing writer: %v", err)
+		return errors.New("error closing writer")
 	}
 
 	// Send the request
 	req, err := http.NewRequest("POST", a.config.WebhookURL, &buf)
 	if err != nil {
-		return fmt.Errorf("error creating request: %v", err)
+		logger.Error("error creating request: %v", err)
+		return errors.New("error creating request")
 	}
 
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -356,13 +365,15 @@ func (a *App) sendFileToDiscord(filePath, customName string) error {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("error sending request: %v", err)
+		logger.Error("error sending request: %v", err)
+		return errors.New("error sending request")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 && resp.StatusCode != 204 {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("discord API error: %d - %s", resp.StatusCode, string(body))
+		logger.Error("discord API error: %d - %s", resp.StatusCode, string(body))
+		return errors.New("discord API error")
 	}
 
 	return nil
@@ -460,13 +471,17 @@ func formatDuration(d time.Duration) string {
 	seconds := int(d.Seconds()) % 60
 
 	if days > 0 {
-		return fmt.Sprintf("%dd %dh %dm %ds", days, hours, minutes, seconds)
+		return intToStr(days) + "d " + intToStr(hours) + "h " + intToStr(minutes) + "m " + intToStr(seconds) + "s"
 	} else if hours > 0 {
-		return fmt.Sprintf("%dh %dm %ds", hours, minutes, seconds)
+		return intToStr(hours) + "h " + intToStr(minutes) + "m " + intToStr(seconds) + "s"
 	} else if minutes > 0 {
-		return fmt.Sprintf("%dm %ds", minutes, seconds)
+		return intToStr(minutes) + "m " + intToStr(seconds) + "s"
 	}
-	return fmt.Sprintf("%ds", seconds)
+	return intToStr(seconds) + "s"
+}
+
+func intToStr(i int) string {
+	return strconv.Itoa(i)
 }
 
 // GetStatistics returns the current application statistics
@@ -554,55 +569,55 @@ func (a *App) SetWindowsStartup(enabled bool) error {
 		err := a.addToWindowsStartup()
 		if err != nil {
 			a.config.WindowsStartup = false // Revert on error
-			return fmt.Errorf("failed to add to Windows startup: %v", err)
+			logger.Error("failed to add to Windows startup: %v", err)
+			return errors.New("failed to add to Windows startup")
 		}
 	} else {
 		err := a.removeFromWindowsStartup()
 		if err != nil {
-			return fmt.Errorf("failed to remove from Windows startup: %v", err)
+			logger.Error("failed to remove from Windows startup: %v", err)
+			return errors.New("failed to remove from Windows startup")
 		}
 	}
 
 	return a.configManager.SaveConfig(a.config)
 }
 
-// addToWindowsStartup adds the application to Windows startup
 func (a *App) addToWindowsStartup() error {
-	// Get the current executable path
 	exePath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("failed to get executable path: %v", err)
+		logger.Error("failed to get executable path: %v", err)
+		return errors.New("failed to get executable path")
 	}
 
-	// Open the Windows registry key for startup programs
 	key, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, registry.SET_VALUE)
 	if err != nil {
-		return fmt.Errorf("failed to open registry key: %v", err)
+		logger.Error("failed to open registry key: %v", err)
+		return errors.New("failed to open registry key")
 	}
 	defer key.Close()
 
-	// Set the registry value to start the app on Windows startup
 	err = key.SetStringValue("AutoClipSend", exePath)
 	if err != nil {
-		return fmt.Errorf("failed to set registry value: %v", err)
+		logger.Error("failed to set registry value: %v", err)
+		return errors.New("failed to set registry value")
 	}
 
 	return nil
 }
 
-// removeFromWindowsStartup removes the application from Windows startup
 func (a *App) removeFromWindowsStartup() error {
-	// Open the Windows registry key for startup programs
 	key, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, registry.SET_VALUE)
 	if err != nil {
-		return fmt.Errorf("failed to open registry key: %v", err)
+		logger.Error("failed to open registry key: %v", err)
+		return errors.New("failed to open registry key")
 	}
 	defer key.Close()
 
-	// Delete the registry value
 	err = key.DeleteValue("AutoClipSend")
 	if err != nil && err != registry.ErrNotExist {
-		return fmt.Errorf("failed to delete registry value: %v", err)
+		logger.Error("failed to delete registry value: %v", err)
+		return errors.New("failed to delete registry value")
 	}
 
 	return nil
@@ -629,9 +644,9 @@ func (a *App) addSubdirectories(root string) error {
 		if info.IsDir() && path != root {
 			err = a.watcher.Add(path)
 			if err != nil {
-				fmt.Printf("Error adding subdirectory %s to watcher: %v\n", path, err)
+				logger.Error("Error adding subdirectory %s to watcher: %v", path, err)
 			} else {
-				fmt.Printf("Added subdirectory to watch: %s\n", path)
+				logger.Debug("Added subdirectory to watch: %s", path)
 			}
 		}
 		return nil

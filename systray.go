@@ -1,8 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"time"
+
+	"autoclipsend/logger"
 
 	"github.com/getlantern/systray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -12,15 +13,15 @@ import (
 func (a *App) InitTray() {
 	// IMPORTANT: Call systray.Run in a goroutine so it doesn't block
 	go func() {
-		fmt.Println("Starting system tray...")
+		logger.Info("Starting system tray...")
 		systray.Run(a.onTrayReady, a.onTrayExit)
-		fmt.Println("System tray stopped - this should only happen on exit")
+		logger.Info("System tray stopped - this should only happen on exit")
 	}()
 }
 
 // onTrayReady sets up the tray icon and menu
 func (a *App) onTrayReady() {
-	fmt.Println("Tray icon is now ready")
+	logger.Debug("Tray icon is now ready")
 
 	// Use the icon from main.go
 	systray.SetIcon(icon)
@@ -68,7 +69,7 @@ func (a *App) onTrayReady() {
 		for {
 			select {
 			case <-mShow.ClickedCh:
-				fmt.Println("Show window clicked in tray menu")
+				logger.Debug("Show window clicked in tray menu")
 				a.ShowFromTray()
 
 			case <-mToggleMonitoring.ClickedCh:
@@ -76,7 +77,7 @@ func (a *App) onTrayReady() {
 				runtime.EventsEmit(a.ctx, "toggle-monitoring", a.isMonitoring)
 
 			case <-mExit.ClickedCh:
-				fmt.Println("Exit clicked in tray menu - shutting down app completely")
+				logger.Info("Exit clicked in tray menu - shutting down app completely")
 				systray.Quit()
 				if a.ctx != nil {
 					runtime.Quit(a.ctx)
@@ -94,7 +95,7 @@ func (a *App) onTrayExit() {
 // MinimizeToTray minimizes the app to the system tray
 func (a *App) MinimizeToTray() {
 	if a.ctx != nil {
-		fmt.Println("MinimizeToTray - Hiding window and setting isVisible=false")
+		logger.Debug("MinimizeToTray - Hiding window and setting isVisible=false")
 		// Set window as not visible first
 		a.isVisible = false
 
@@ -104,20 +105,20 @@ func (a *App) MinimizeToTray() {
 		// Tell the frontend that we've minimized to tray
 		runtime.EventsEmit(a.ctx, "app-minimized-to-tray")
 
-		fmt.Println("App is now minimized to tray - tray icon should be visible")
+		logger.Debug("App is now minimized to tray - tray icon should be visible")
 	} else {
-		fmt.Println("ERROR: MinimizeToTray called with nil context!")
+		logger.Error("MinimizeToTray called with nil context!")
 	}
 }
 
 // ShowFromTray shows the app from the system tray
 func (a *App) ShowFromTray() {
 	if a.ctx == nil {
-		fmt.Println("ERROR: ShowFromTray called with nil context!")
+		logger.Error("ShowFromTray called with nil context!")
 		return
 	}
 
-	fmt.Println("ShowFromTray - Showing window from tray and bringing to front")
+	logger.Debug("ShowFromTray - Showing window from tray and bringing to front")
 
 	// Set always on top before showing/unminimizing
 	runtime.WindowSetAlwaysOnTop(a.ctx, true)
@@ -131,14 +132,13 @@ func (a *App) ShowFromTray() {
 
 	time.Sleep(200 * time.Millisecond)
 	runtime.WindowSetAlwaysOnTop(a.ctx, false)
-
 	// Update visibility state
 	a.isVisible = true
 
 	// Emit event to notify frontend
 	runtime.EventsEmit(a.ctx, "app-restored-from-tray")
 
-	fmt.Println("Window is now visible and brought to front")
+	logger.Debug("Window is now visible and brought to front")
 }
 
 // ToggleVisibility toggles the app's visibility
