@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { Settings, Globe, Folder, FolderOpen, TestTube, Save, Download, ExternalLink, Info, RefreshCw } from 'lucide-vue-next'
-import { GetConfig, SaveConfig, UpdateMonitorPath, SelectFolder, SetWindowsStartup, GetVersionInfo, CheckForUpdates, OpenUpdateURL } from '../../wailsjs/go/main/App'
+import { GetConfig, SaveConfig, UpdateMonitorPath, SelectFolder, SetWindowsStartup, SetDesktopShortcut, GetVersionInfo, CheckForUpdates, OpenUpdateURL } from '../../wailsjs/go/main/App'
 
 const config = ref({
   webhookURL: '',
@@ -9,7 +9,9 @@ const config = ref({
   maxFileSize: 20, // Store in MB directly
   checkInterval: 2,
   startupInitialization: true,
-  windowsStartup: false,  recursiveMonitoring: false
+  windowsStartup: false,
+  recursiveMonitoring: false,
+  desktopShortcut: false
 })
 
 const isSaving = ref(false)
@@ -23,8 +25,7 @@ const updateInfo = ref(null)
 const isCheckingUpdates = ref(false)
 const showVersionDetails = ref(false)
 
-const loadConfig = async () => {
-  try {
+const loadConfig = async () => {  try {
     animateNow.value = false 
     error.value = ''
     const appConfig = await GetConfig()
@@ -35,7 +36,8 @@ const loadConfig = async () => {
       checkInterval: appConfig.check_interval || 2,
       startupInitialization: appConfig.startup_initialization !== undefined ? appConfig.startup_initialization : true,
       windowsStartup: appConfig.windows_startup !== undefined ? appConfig.windows_startup : false,
-      recursiveMonitoring: appConfig.recursive_monitoring !== undefined ? appConfig.recursive_monitoring : false
+      recursiveMonitoring: appConfig.recursive_monitoring !== undefined ? appConfig.recursive_monitoring : false,
+      desktopShortcut: appConfig.desktop_shortcut !== undefined ? appConfig.desktop_shortcut : false
     }
   } catch (err) {
     error.value = 'Failed to load configuration: ' + err.message
@@ -51,7 +53,8 @@ const loadConfig = async () => {
 }
 
 const saveConfig = async () => {
-  try {    isSaving.value = true
+  try {
+    isSaving.value = true
     error.value = ''
     const configToSave = {
       webhook_url: config.value.webhookURL,
@@ -60,7 +63,8 @@ const saveConfig = async () => {
       check_interval: config.value.checkInterval,
       startup_initialization: config.value.startupInitialization,
       windows_startup: config.value.windowsStartup,
-      recursive_monitoring: config.value.recursiveMonitoring
+      recursive_monitoring: config.value.recursiveMonitoring,
+      desktop_shortcut: config.value.desktopShortcut
     }
     
     await SaveConfig(configToSave)
@@ -128,6 +132,17 @@ watch(() => config.value.windowsStartup, async (newValue) => {
     error.value = 'Failed to update Windows startup setting: ' + err.message
     // Revert the toggle if the backend call failed
     config.value.windowsStartup = !newValue
+  }
+})
+
+// Watch for desktop shortcut setting changes and immediately apply them
+watch(() => config.value.desktopShortcut, async (newValue) => {
+  try {
+    await SetDesktopShortcut(newValue)
+  } catch (err) {
+    error.value = 'Failed to update desktop shortcut setting: ' + err.message
+    // Revert the toggle if the backend call failed
+    config.value.desktopShortcut = !newValue
   }
 })
 
@@ -365,8 +380,7 @@ onMounted(() => {
                     Automatically begin file monitoring when the application starts
                   </p>
                 </div>
-                
-                <div class="form-group">
+                  <div class="form-group">
                   <label for="windowsStartup">Start with Windows</label>
                   <div class="toggle-container">
                     <label class="toggle-switch">
@@ -382,7 +396,27 @@ onMounted(() => {
                   </div>
                   <p class="form-help">
                     Automatically launch AutoClipSend when Windows starts
-                  </p>                </div>
+                  </p>
+                </div>
+                
+                <div class="form-group">
+                  <label for="desktopShortcut">Create desktop shortcut</label>
+                  <div class="toggle-container">
+                    <label class="toggle-switch">
+                      <input
+                        id="desktopShortcut"
+                        v-model="config.desktopShortcut"
+                        type="checkbox"
+                        class="toggle-input"
+                      />
+                      <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">{{ config.desktopShortcut ? 'Enabled' : 'Disabled' }}</span>
+                  </div>
+                  <p class="form-help">
+                    Create and maintain a desktop shortcut for AutoClipSend
+                  </p>
+                </div>
               </div>
             </transition>
             
@@ -883,7 +917,7 @@ onMounted(() => {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   font-weight: 500;
 }
 

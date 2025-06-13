@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"autoclipsend/logger"
@@ -53,14 +56,14 @@ func NewApp() *App {
 	// Load config from config manager
 	config, err := configManager.LoadConfig()
 	if err != nil {
-		logger.Warn("Failed to load config: %v, using defaults", err)
-		// Create default config if loading fails
+		logger.Warn("Failed to load config: %v, using defaults", err)		// Create default config if loading fails
 		config = &Config{
 			MonitorPath:           `E:\Highlights\Clips\Screen Recording`,
 			MaxFileSize:           10, // 10MB
 			CheckInterval:         2,
 			StartupInitialization: true,
 			WindowsStartup:        false, // Default to disabled
+			DesktopShortcut:       false, // Default to disabled
 			Stats: Stats{
 				TotalClips:     0,
 				SessionClips:   0,
@@ -680,4 +683,184 @@ func (a *App) OpenUpdateURL(url string) error {
 	// Use Windows-specific command to open URL
 	cmd := exec.Command("cmd", "/c", "start", url)
 	return cmd.Run()
+}
+
+// CreateDesktopShortcut creates a desktop shortcut for the application
+func (a *App) CreateDesktopShortcut() error {
+	// Windows process creation flags
+	const CREATE_NO_WINDOW = 0x08000000
+
+	// Get the current executable path
+	exePath, err := os.Executable()
+	if err != nil {
+		logger.Error("failed to get executable path: %v", err)
+		return errors.New("failed to get executable path")
+	}
+
+	// Get the desktop path using PowerShell with completely hidden execution
+	psGetDesktopScript := `[Environment]::GetFolderPath('Desktop')`
+	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", psGetDesktopScript)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: CREATE_NO_WINDOW,
+	}
+	desktopBytes, err := cmd.Output()
+	if err != nil {
+		logger.Error("failed to get desktop path: %v", err)
+		return errors.New("failed to get desktop path")
+	}
+	
+	desktopPath := strings.TrimSpace(string(desktopBytes))
+	if desktopPath == "" {
+		// Fallback to default path
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			logger.Error("failed to get user home directory: %v", err)
+			return errors.New("failed to get user home directory")
+		}
+		desktopPath = filepath.Join(homeDir, "Desktop")
+	}
+
+	// Ensure the desktop directory exists
+	if err := os.MkdirAll(desktopPath, 0755); err != nil {
+		logger.Error("failed to create desktop directory: %v", err)
+		return errors.New("failed to create desktop directory")
+	}
+	
+	shortcutPath := filepath.Join(desktopPath, "AutoClipSend.lnk")
+
+	// Create PowerShell script to create the shortcut using proper escaping
+	psScript := fmt.Sprintf(`
+$WshShell = New-Object -comObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut('%s')
+$Shortcut.TargetPath = '%s'
+$Shortcut.WorkingDirectory = '%s'
+$Shortcut.Description = 'AutoClipSend - Automatic clip sender to Discord'
+$Shortcut.Save()
+`, shortcutPath, exePath, filepath.Dir(exePath))
+
+	// Execute the PowerShell script with completely hidden execution
+	cmd = exec.Command("powershell", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", psScript)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: CREATE_NO_WINDOW,
+	}
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.Error("failed to create desktop shortcut: %v, output: %s", err, string(output))
+		return errors.New("failed to create desktop shortcut: " + string(output))
+	}
+
+	logger.Info("Desktop shortcut created successfully at: %s", shortcutPath)
+	return nil
+}
+
+// RemoveDesktopShortcut removes the desktop shortcut
+func (a *App) RemoveDesktopShortcut() error {
+	// Windows process creation flags
+	const CREATE_NO_WINDOW = 0x08000000
+	
+	// Get the desktop path using PowerShell to get the actual Desktop folder location
+	psGetDesktopScript := `[Environment]::GetFolderPath('Desktop')`
+	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", psGetDesktopScript)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: CREATE_NO_WINDOW,
+	}
+	desktopBytes, err := cmd.Output()
+	if err != nil {
+		logger.Error("failed to get desktop path: %v", err)
+		return errors.New("failed to get desktop path")
+	}
+	
+	desktopPath := strings.TrimSpace(string(desktopBytes))
+	if desktopPath == "" {
+		// Fallback to default path
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			logger.Error("failed to get user home directory: %v", err)
+			return errors.New("failed to get user home directory")
+		}
+		desktopPath = filepath.Join(homeDir, "Desktop")
+	}
+	
+	shortcutPath := filepath.Join(desktopPath, "AutoClipSend.lnk")
+
+	// Check if shortcut exists
+	if _, err := os.Stat(shortcutPath); os.IsNotExist(err) {
+		logger.Info("Desktop shortcut does not exist, nothing to remove")
+		return nil // Shortcut doesn't exist, nothing to remove
+	}
+
+	// Remove the shortcut
+	err = os.Remove(shortcutPath)
+	if err != nil {
+		logger.Error("failed to remove desktop shortcut: %v", err)
+		return errors.New("failed to remove desktop shortcut: " + err.Error())
+	}
+
+	logger.Info("Desktop shortcut removed successfully from: %s", shortcutPath)
+	return nil
+}
+
+// HasDesktopShortcut checks if a desktop shortcut exists
+func (a *App) HasDesktopShortcut() bool {
+	// Windows process creation flags
+	const CREATE_NO_WINDOW = 0x08000000
+	
+	// Get the desktop path using PowerShell to get the actual Desktop folder location
+	psGetDesktopScript := `[Environment]::GetFolderPath('Desktop')`
+	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", psGetDesktopScript)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: CREATE_NO_WINDOW,
+	}
+	desktopBytes, err := cmd.Output()
+	if err != nil {
+		// Fallback to default path
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return false
+		}
+		desktopPath := filepath.Join(homeDir, "Desktop")
+		shortcutPath := filepath.Join(desktopPath, "AutoClipSend.lnk")
+		_, err = os.Stat(shortcutPath)
+		return err == nil
+	}
+	
+	desktopPath := strings.TrimSpace(string(desktopBytes))
+	if desktopPath == "" {
+		// Fallback to default path
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return false
+		}
+		desktopPath = filepath.Join(homeDir, "Desktop")
+	}
+	
+	shortcutPath := filepath.Join(desktopPath, "AutoClipSend.lnk")
+	_, err = os.Stat(shortcutPath)
+	return err == nil
+}
+
+// SetDesktopShortcut enables or disables desktop shortcut
+func (a *App) SetDesktopShortcut(enabled bool) error {
+	a.config.DesktopShortcut = enabled
+
+	if enabled {
+		err := a.CreateDesktopShortcut()
+		if err != nil {
+			a.config.DesktopShortcut = false // Revert on error
+			logger.Error("failed to create desktop shortcut: %v", err)
+			return errors.New("failed to create desktop shortcut")
+		}
+	} else {
+		err := a.RemoveDesktopShortcut()
+		if err != nil {
+			logger.Error("failed to remove desktop shortcut: %v", err)
+			return errors.New("failed to remove desktop shortcut")
+		}
+	}
+
+	return a.configManager.SaveConfig(a.config)
 }
