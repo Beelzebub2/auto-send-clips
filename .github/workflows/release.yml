@@ -88,22 +88,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create ${{ github.event.inputs.version }} build/bin/autoclipsend.exe --title "AutoClipSend ${{ github.event.inputs.version }}" --notes "## AutoClipSend ${{ github.event.inputs.version }}
-            
-          ### 📋 Prerequisites
-          - Windows 10/11
-          - FFmpeg (for video processing)
-          - Discord webhook URL
-            
-          ### 🚀 Quick Start
-          1. Download autoclipsend.exe below
-          2. Install FFmpeg and add to PATH
-          3. Run the application
-          4. Configure your Discord webhook
-          5. Set monitor folder path
-            
-          ---
-          **Full documentation:** [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)"      
+          gh release create ${{ github.event.inputs.version }} build/bin/autoclipsend.exe --title "AutoClipSend ${{ github.event.inputs.version }}"
+           
       - name: Commit updated VERSION.json
         run: |
             git config --local user.email "action@github.com"
