@@ -31,6 +31,7 @@ export namespace main {
 	    startup_initialization: boolean;
 	    windows_startup: boolean;
 	    recursive_monitoring: boolean;
+	    desktop_shortcut: boolean;
 	    total_clips: number;
 	    // Go type: time
 	    last_clip_time: any;
@@ -55,6 +56,7 @@ export namespace main {
 	        this.startup_initialization = source["startup_initialization"];
 	        this.windows_startup = source["windows_startup"];
 	        this.recursive_monitoring = source["recursive_monitoring"];
+	        this.desktop_shortcut = source["desktop_shortcut"];
 	        this.total_clips = source["total_clips"];
 	        this.last_clip_time = this.convertValues(source["last_clip_time"], null);
 	        this.session_clips = source["session_clips"];

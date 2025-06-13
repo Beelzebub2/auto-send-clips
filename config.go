@@ -18,8 +18,7 @@ type Stats struct {
 }
 
 // Config holds application configuration and statistics
-type Config struct {
-	// Settings
+type Config struct {	// Settings
 	WebhookURL            string `json:"webhook_url"`
 	DiscordWebhook        string `json:"discord_webhook"` // Alternative name for webhook
 	MonitorPath           string `json:"monitor_path"`
@@ -28,6 +27,7 @@ type Config struct {
 	StartupInitialization bool   `json:"startup_initialization"` // Whether to start monitoring on startup
 	WindowsStartup        bool   `json:"windows_startup"`        // Whether to start with Windows
 	RecursiveMonitoring   bool   `json:"recursive_monitoring"`   // Whether to monitor subfolders recursively
+	DesktopShortcut       bool   `json:"desktop_shortcut"`       // Whether to create/maintain desktop shortcut
 
 	// Statistics
 	Stats

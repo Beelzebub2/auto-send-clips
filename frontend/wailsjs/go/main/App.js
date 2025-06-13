@@ -10,6 +10,10 @@ export function CheckForUpdates() {
   return window['go']['main']['App']['CheckForUpdates']();
 }
 
+export function CreateDesktopShortcut() {
+  return window['go']['main']['App']['CreateDesktopShortcut']();
+}
+
 export function ExportData(arg1) {
   return window['go']['main']['App']['ExportData'](arg1);
 }
@@ -58,6 +62,10 @@ export function HandleWindowClose() {
   return window['go']['main']['App']['HandleWindowClose']();
 }
 
+export function HasDesktopShortcut() {
+  return window['go']['main']['App']['HasDesktopShortcut']();
+}
+
 export function ImportData(arg1) {
   return window['go']['main']['App']['ImportData'](arg1);
 }
@@ -90,6 +98,10 @@ export function OpenUpdateURL(arg1) {
   return window['go']['main']['App']['OpenUpdateURL'](arg1);
 }
 
+export function RemoveDesktopShortcut() {
+  return window['go']['main']['App']['RemoveDesktopShortcut']();
+}
+
 export function ResetSessionStats() {
   return window['go']['main']['App']['ResetSessionStats']();
 }
@@ -104,6 +116,10 @@ export function SelectFolder() {
 
 export function SendToDiscord(arg1, arg2, arg3) {
   return window['go']['main']['App']['SendToDiscord'](arg1, arg2, arg3);
+}
+
+export function SetDesktopShortcut(arg1) {
+  return window['go']['main']['App']['SetDesktopShortcut'](arg1);
 }
 
 export function SetWebhookURL(arg1) {

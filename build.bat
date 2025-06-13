@@ -160,9 +160,8 @@ if %ERRORLEVEL% EQU 0 (
     echo.
     echo Setup Instructions:
     echo 1. Ensure FFmpeg is installed and in your PATH
-    echo 2. Create the folder: E:\Highlights\Clips\Screen Recording
-    echo 3. Get your Discord webhook URL
-    echo 4. Run the application and configure the webhook
+    echo 2. Get your Discord webhook URL
+    echo 3. Run the application and configure the webhook
     echo.
     echo The application will run in the background and monitor
     echo the folder for new video files automatically.

@@ -7,6 +7,8 @@ export function BringToFront():Promise<void>;
 
 export function CheckForUpdates():Promise<version.UpdateInfo>;
 
+export function CreateDesktopShortcut():Promise<void>;
+
 export function ExportData(arg1:string):Promise<void>;
 
 export function GetAppStatus():Promise<main.AppStatus>;
@@ -31,6 +33,8 @@ export function GetVersionInfo():Promise<Record<string, string>>;
 
 export function HandleWindowClose():Promise<void>;
 
+export function HasDesktopShortcut():Promise<boolean>;
+
 export function ImportData(arg1:string):Promise<void>;
 
 export function InitTray():Promise<void>;
@@ -47,6 +51,8 @@ export function MinimizeToTray():Promise<void>;
 
 export function OpenUpdateURL(arg1:string):Promise<void>;
 
+export function RemoveDesktopShortcut():Promise<void>;
+
 export function ResetSessionStats():Promise<void>;
 
 export function SaveConfig(arg1:main.Config):Promise<void>;
@@ -54,6 +60,8 @@ export function SaveConfig(arg1:main.Config):Promise<void>;
 export function SelectFolder():Promise<string>;
 
 export function SendToDiscord(arg1:string,arg2:string,arg3:boolean):Promise<void>;
+
+export function SetDesktopShortcut(arg1:boolean):Promise<void>;
 
 export function SetWebhookURL(arg1:string):Promise<void>;
 
