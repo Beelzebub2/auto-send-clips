@@ -18,7 +18,8 @@ type Stats struct {
 }
 
 // Config holds application configuration and statistics
-type Config struct {	// Settings
+type Config struct {
+	// Settings
 	WebhookURL            string `json:"webhook_url"`
 	DiscordWebhook        string `json:"discord_webhook"` // Alternative name for webhook
 	MonitorPath           string `json:"monitor_path"`
@@ -28,6 +29,9 @@ type Config struct {	// Settings
 	WindowsStartup        bool   `json:"windows_startup"`        // Whether to start with Windows
 	RecursiveMonitoring   bool   `json:"recursive_monitoring"`   // Whether to monitor subfolders recursively
 	DesktopShortcut       bool   `json:"desktop_shortcut"`       // Whether to create/maintain desktop shortcut
+	UseMedalTVPath        bool   `json:"use_medaltv_path"`       // Whether to use MedalTV's clipFolder path
+	UseNVIDIAPath         bool   `json:"use_nvidia_path"`        // Whether to use NVIDIA's currentDirectoryV2 path
+	UseCustomPath         bool   `json:"use_custom_path"`        // Whether to use a custom path selection
 
 	// Statistics
 	Stats
@@ -64,12 +68,17 @@ func (cm *ConfigManager) LoadConfig() (*Config, error) {
 	data, err := os.ReadFile(cm.configPath)
 	if err != nil { // Return default config if file doesn't exist
 		return &Config{
+			WebhookURL:            "", // Default to empty
 			MonitorPath:           `E:\Highlights\Clips\Screen Recording`,
 			MaxFileSize:           10, // 10MB
 			CheckInterval:         2,
 			StartupInitialization: true,  // Default to enabled
 			WindowsStartup:        false, // Default to disabled
 			RecursiveMonitoring:   false, // Default to disabled
+			DesktopShortcut:       false, // Default to disabled
+			UseMedalTVPath:        false, // Default to disabled
+			UseNVIDIAPath:         false, // Default to disabled
+			UseCustomPath:         false, // Default to disabled
 			Stats: Stats{
 				TotalClips:     0,
 				SessionClips:   0,
@@ -79,11 +88,30 @@ func (cm *ConfigManager) LoadConfig() (*Config, error) {
 			},
 		}, nil
 	}
-
 	var config Config
 	err = json.Unmarshal(data, &config)
 	if err != nil {
-		return nil, err
+		// Return default config if JSON parsing fails
+		return &Config{
+			WebhookURL:            "", // Default to empty
+			MonitorPath:           `E:\Highlights\Clips\Screen Recording`,
+			MaxFileSize:           10, // 10MB
+			CheckInterval:         2,
+			StartupInitialization: true,  // Default to enabled
+			WindowsStartup:        false, // Default to disabled
+			RecursiveMonitoring:   false, // Default to disabled
+			DesktopShortcut:       false, // Default to disabled
+			UseMedalTVPath:        false, // Default to disabled
+			UseNVIDIAPath:         false, // Default to disabled
+			UseCustomPath:         false, // Default to disabled
+			Stats: Stats{
+				TotalClips:     0,
+				SessionClips:   0,
+				TotalSize:      0,
+				StartTime:      time.Now(),
+				LastUpdateTime: time.Now(),
+			},
+		}, nil
 	}
 
 	return &config, nil

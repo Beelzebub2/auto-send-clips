@@ -7,6 +7,11 @@ export namespace main {
 	    videosSent: number;
 	    audiosSent: number;
 	    version: string;
+	    useMedalTV: boolean;
+	    useNVIDIA: boolean;
+	    useCustom: boolean;
+	    medalTVPath: string;
+	    nvidiaPath: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppStatus(source);
@@ -20,6 +25,11 @@ export namespace main {
 	        this.videosSent = source["videosSent"];
 	        this.audiosSent = source["audiosSent"];
 	        this.version = source["version"];
+	        this.useMedalTV = source["useMedalTV"];
+	        this.useNVIDIA = source["useNVIDIA"];
+	        this.useCustom = source["useCustom"];
+	        this.medalTVPath = source["medalTVPath"];
+	        this.nvidiaPath = source["nvidiaPath"];
 	    }
 	}
 	export class Config {
@@ -32,6 +42,9 @@ export namespace main {
 	    windows_startup: boolean;
 	    recursive_monitoring: boolean;
 	    desktop_shortcut: boolean;
+	    use_medaltv_path: boolean;
+	    use_nvidia_path: boolean;
+	    use_custom_path: boolean;
 	    total_clips: number;
 	    // Go type: time
 	    last_clip_time: any;
@@ -57,6 +70,9 @@ export namespace main {
 	        this.windows_startup = source["windows_startup"];
 	        this.recursive_monitoring = source["recursive_monitoring"];
 	        this.desktop_shortcut = source["desktop_shortcut"];
+	        this.use_medaltv_path = source["use_medaltv_path"];
+	        this.use_nvidia_path = source["use_nvidia_path"];
+	        this.use_custom_path = source["use_custom_path"];
 	        this.total_clips = source["total_clips"];
 	        this.last_clip_time = this.convertValues(source["last_clip_time"], null);
 	        this.session_clips = source["session_clips"];

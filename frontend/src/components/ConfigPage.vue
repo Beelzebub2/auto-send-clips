@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { Settings, Globe, Folder, FolderOpen, TestTube, Save, Download, ExternalLink, Info, RefreshCw } from 'lucide-vue-next'
-import { GetConfig, SaveConfig, UpdateMonitorPath, SelectFolder, SetWindowsStartup, SetDesktopShortcut, GetVersionInfo, CheckForUpdates, OpenUpdateURL } from '../../wailsjs/go/main/App'
+import { GetConfig, SaveConfig, UpdateMonitorPath, SelectFolder, SetWindowsStartup, SetDesktopShortcut, GetVersionInfo, CheckForUpdates, OpenUpdateURL, GetMedalTVClipFolder, GetNVIDIACurrentDirectory } from '../../wailsjs/go/main/App'
 
 const config = ref({
   webhookURL: '',
@@ -11,7 +11,10 @@ const config = ref({
   startupInitialization: true,
   windowsStartup: false,
   recursiveMonitoring: false,
-  desktopShortcut: false
+  desktopShortcut: false,
+  useMedalTVPath: false,
+  useNVIDIAPath: false,
+  useCustomPath: false
 })
 
 const isSaving = ref(false)
@@ -19,14 +22,18 @@ const error = ref('')
 // Use a completely separate reactive property to control animations
 const animateNow = ref(false)
 
+// Store individual paths for preview
+const medalTVPath = ref('')
+const nvidiaPath = ref('')
+
 // Version and update related variables
 const versionInfo = ref({})
 const updateInfo = ref(null)
 const isCheckingUpdates = ref(false)
 const showVersionDetails = ref(false)
 
-const loadConfig = async () => {  try {
-    animateNow.value = false 
+const loadConfig = async () => {
+  try {    animateNow.value = false 
     error.value = ''
     const appConfig = await GetConfig()
     config.value = {
@@ -37,7 +44,10 @@ const loadConfig = async () => {  try {
       startupInitialization: appConfig.startup_initialization !== undefined ? appConfig.startup_initialization : true,
       windowsStartup: appConfig.windows_startup !== undefined ? appConfig.windows_startup : false,
       recursiveMonitoring: appConfig.recursive_monitoring !== undefined ? appConfig.recursive_monitoring : false,
-      desktopShortcut: appConfig.desktop_shortcut !== undefined ? appConfig.desktop_shortcut : false
+      desktopShortcut: appConfig.desktop_shortcut !== undefined ? appConfig.desktop_shortcut : false,
+      useMedalTVPath: appConfig.use_medaltv_path !== undefined ? appConfig.use_medaltv_path : false,
+      useNVIDIAPath: appConfig.use_nvidia_path !== undefined ? appConfig.use_nvidia_path : false,
+      useCustomPath: appConfig.use_custom_path !== undefined ? appConfig.use_custom_path : false
     }
   } catch (err) {
     error.value = 'Failed to load configuration: ' + err.message
@@ -52,8 +62,7 @@ const loadConfig = async () => {  try {
   }
 }
 
-const saveConfig = async () => {
-  try {
+const saveConfig = async () => {  try {
     isSaving.value = true
     error.value = ''
     const configToSave = {
@@ -64,7 +73,10 @@ const saveConfig = async () => {
       startup_initialization: config.value.startupInitialization,
       windows_startup: config.value.windowsStartup,
       recursive_monitoring: config.value.recursiveMonitoring,
-      desktop_shortcut: config.value.desktopShortcut
+      desktop_shortcut: config.value.desktopShortcut,
+      use_medaltv_path: config.value.useMedalTVPath,
+      use_nvidia_path: config.value.useNVIDIAPath,
+      use_custom_path: config.value.useCustomPath
     }
     
     await SaveConfig(configToSave)
@@ -89,11 +101,62 @@ const selectFolder = async () => {
   }
 }
 
+const getMedalTVPath = async () => {
+  try {
+    const medalPath = await GetMedalTVClipFolder()
+    if (medalPath) {
+      medalTVPath.value = medalPath
+      await saveConfig()
+      // Use restartMonitoring instead of updateMonitorPath for multi-path support
+      await restartMonitoring()
+    }
+  } catch (err) {
+    error.value = 'Failed to get MedalTV path: ' + err.message
+    // Revert checkbox if getting path failed
+    config.value.useMedalTVPath = false
+  }
+}
+
+const getNVIDIAPath = async () => {
+  try {
+    const nvPath = await GetNVIDIACurrentDirectory()
+    if (nvPath) {
+      nvidiaPath.value = nvPath
+      await saveConfig()
+      // Use restartMonitoring instead of updateMonitorPath for multi-path support
+      await restartMonitoring()
+    }
+  } catch (err) {
+    error.value = 'Failed to get NVIDIA path: ' + err.message
+    // Revert checkbox if getting path failed
+    config.value.useNVIDIAPath = false
+  }
+}
+
 const updateMonitorPath = async () => {
   try {
     await UpdateMonitorPath(config.value.monitorPath)
   } catch (err) {
     error.value = 'Failed to update monitor path: ' + err.message
+  }
+}
+
+const restartMonitoring = async () => {
+  try {
+    // Import the new restart function - we'll add this to the backend
+    const { RestartMonitoring } = await import('../../wailsjs/go/main/App')
+    await RestartMonitoring()
+  } catch (err) {
+    // Fall back to the old method if the new function isn't available yet
+    try {
+      const { StopMonitoring, StartMonitoring } = await import('../../wailsjs/go/main/App')
+      await StopMonitoring()
+      // Small delay to ensure clean shutdown
+      await new Promise(resolve => setTimeout(resolve, 100))
+      await StartMonitoring()
+    } catch (fallbackErr) {
+      error.value = 'Failed to restart monitoring: ' + fallbackErr.message
+    }
   }
 }
 
@@ -146,6 +209,51 @@ watch(() => config.value.desktopShortcut, async (newValue) => {
   }
 })
 
+// Watch for custom path toggle changes
+watch(() => config.value.useCustomPath, async (newValue) => {
+  if (!newValue) {
+    // User disabled custom path mode - clear the monitor path
+    config.value.monitorPath = ''
+  }
+  await saveConfig()
+  await restartMonitoring()
+}, { deep: true })
+
+// Watch for MedalTV checkbox changes
+watch(() => config.value.useMedalTVPath, async (newValue) => {
+  if (newValue) {
+    // User enabled MedalTV mode - get the path
+    await getMedalTVPath()
+  } else {
+    // User disabled MedalTV mode - clear the path and restart monitoring
+    medalTVPath.value = ''
+    await saveConfig()
+    await restartMonitoring()
+  }
+}, { deep: true })
+
+// Watch for NVIDIA checkbox changes
+watch(() => config.value.useNVIDIAPath, async (newValue) => {
+  if (newValue) {
+    // User enabled NVIDIA mode - get the path
+    await getNVIDIAPath()
+  } else {
+    // User disabled NVIDIA mode - clear the path and restart monitoring
+    nvidiaPath.value = ''
+    await saveConfig()
+    await restartMonitoring()
+  }
+}, { deep: true })
+
+// Watch for custom path toggle changes
+watch(() => config.value.useCustomPath, async (newValue) => {
+  if (!newValue) {
+    // User disabled custom path - clear the monitor path
+    config.value.monitorPath = ''
+  }
+  await saveConfig()
+}, { deep: true })
+
 // Auto-save watchers for immediate configuration updates
 let saveTimeout = null
 
@@ -161,10 +269,10 @@ const debouncedSave = () => {
 watch(() => config.value.webhookURL, debouncedSave, { deep: true })
 
 watch(() => config.value.monitorPath, async (newPath, oldPath) => {
-  // Only auto-save and update monitor path if the path actually changed and is not empty
+  // Only auto-save and restart monitoring if the path actually changed and is not empty
   if (newPath && newPath !== oldPath) {
     await saveConfig()
-    await updateMonitorPath()
+    await restartMonitoring()
   }
 }, { deep: true })
 
@@ -175,10 +283,8 @@ watch(() => config.value.startupInitialization, debouncedSave, { deep: true })
 // Watch for recursive monitoring changes and immediately restart the watcher
 watch(() => config.value.recursiveMonitoring, async () => {
   await saveConfig()
-  // Restart the file watcher with the new recursive setting
-  if (config.value.monitorPath) {
-    await updateMonitorPath()
-  }
+  // Restart the file watcher with the new recursive setting for all active paths
+  await restartMonitoring()
 }, { deep: true })
 
 // Version and update functions
@@ -281,26 +387,134 @@ onMounted(() => {
                 <h3>
                   <Folder :size="18" />
                   File Monitoring
-                </h3>
-                <div class="form-group">
+                </h3>                <div class="form-group">
                   <label for="monitorPath">Monitor Path</label>
-                  <div class="input-group">
+                    <!-- Path Selection Cards -->
+                  <div class="path-selection-container">
+                    <div class="path-checkbox-group">
+                      <!-- MedalTV Card -->
+                      <div class="path-checkbox-card" :class="{ selected: config.useMedalTVPath }">
+                        <input
+                          v-model="config.useMedalTVPath"
+                          type="checkbox"
+                          class="path-checkbox-input"
+                          id="medalTVPath"
+                        />
+                        <div class="path-checkbox-header">
+                          <div class="path-checkbox-icon">M</div>
+                          <div class="path-checkbox-title">MedalTV</div>
+                        </div>
+                        <div class="path-checkbox-description">
+                          Automatically monitor MedalTV's configured clip folder
+                        </div>
+                      </div>
+                        <!-- NVIDIA Card -->
+                      <div class="path-checkbox-card" :class="{ selected: config.useNVIDIAPath }">
+                        <input
+                          v-model="config.useNVIDIAPath"
+                          type="checkbox"
+                          class="path-checkbox-input"
+                          id="nvidiaPath"
+                        />
+                        <div class="path-checkbox-header">
+                          <div class="path-checkbox-icon nvidia-icon">N</div>
+                          <div class="path-checkbox-title">NVIDIA</div>
+                        </div>
+                        <div class="path-checkbox-description">
+                          Automatically monitor NVIDIA's current directory
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                    <!-- Custom Path Toggle -->
+                  <div class="form-group">
+                    <label for="useCustomPath">Use custom folder path</label>
+                    <div class="toggle-container">
+                      <label class="toggle-switch">
+                        <input
+                          id="useCustomPath"
+                          v-model="config.useCustomPath"
+                          type="checkbox"
+                          class="toggle-input"
+                        />
+                        <span class="toggle-slider"></span>
+                      </label>
+                      <span class="toggle-label">{{ config.useCustomPath ? 'Enabled' : 'Disabled' }}</span>
+                    </div>
+                    <p class="form-help">
+                      Enable this to select an additional custom folder path for monitoring
+                    </p>
+                  </div>                  <!-- Custom Path Input -->
+                  <div class="input-group" v-if="config.useCustomPath">
                     <input
                       id="monitorPath"
                       v-model="config.monitorPath"
                       type="text"
                       placeholder="Select a folder to monitor"
                       class="form-input"
-                      readonly
                     />
-                    <button @click="selectFolder" class="folder-button">
+                    <button 
+                      @click="selectFolder" 
+                      class="folder-button"
+                    >
                       <FolderOpen :size="16" />
                       Browse
                     </button>
+                  </div>                <p class="form-help">
+                    <template v-if="config.useMedalTVPath && config.useNVIDIAPath && config.useCustomPath">
+                      Monitoring MedalTV, NVIDIA, and custom paths
+                    </template>
+                    <template v-else-if="config.useMedalTVPath && config.useNVIDIAPath">
+                      Monitoring both MedalTV and NVIDIA paths
+                    </template>
+                    <template v-else-if="config.useMedalTVPath && config.useCustomPath">
+                      Monitoring MedalTV and custom paths
+                    </template>
+                    <template v-else-if="config.useNVIDIAPath && config.useCustomPath">
+                      Monitoring NVIDIA and custom paths
+                    </template>
+                    <template v-else-if="config.useMedalTVPath">
+                      Path automatically set from MedalTV settings
+                    </template>
+                    <template v-else-if="config.useNVIDIAPath">
+                      Path automatically set from NVIDIA settings
+                    </template>
+                    <template v-else-if="config.useCustomPath">
+                      Custom folder path selected for monitoring
+                    </template>
+                    <template v-else>
+                      Select one or more monitoring options above
+                    </template>
+                  </p><!-- Paths Preview -->
+                  <div class="paths-preview" v-if="(config.useMedalTVPath || config.useNVIDIAPath) || (config.useCustomPath && config.monitorPath)">
+                    <div class="paths-preview-header">
+                      <h4>Active Monitoring Paths:</h4>
+                    </div>
+                    <div class="paths-preview-list">
+                      <div class="preview-path medaltu-preview" v-if="config.useMedalTVPath">
+                        <div class="preview-path-icon medaltu-icon">M</div>
+                        <div class="preview-path-info">
+                          <div class="preview-path-label">MedalTV</div>
+                          <div class="preview-path-value">{{ medalTVPath || 'Loading...' }}</div>
+                        </div>
+                      </div>
+                      
+                      <div class="preview-path nvidia-preview" v-if="config.useNVIDIAPath">
+                        <div class="preview-path-icon nvidia-icon">N</div>
+                        <div class="preview-path-info">
+                          <div class="preview-path-label">NVIDIA</div>
+                          <div class="preview-path-value">{{ nvidiaPath || 'Loading...' }}</div>
+                        </div>
+                      </div>
+                        <div class="preview-path custom-preview" v-if="config.useCustomPath && config.monitorPath">
+                        <div class="preview-path-icon custom-icon">C</div>
+                        <div class="preview-path-info">
+                          <div class="preview-path-label">Custom Path</div>
+                          <div class="preview-path-value">{{ config.monitorPath }}</div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <p class="form-help">
-                    The folder path to monitor for new video files
-                  </p>
                 </div>
                 
                 <div class="form-group">
@@ -886,6 +1100,196 @@ onMounted(() => {
   }
 }
 
+/* Enhanced Checkbox Styling for MedalTV and NVIDIA */
+.path-selection-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.path-checkbox-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.path-checkbox-card {
+  background: linear-gradient(135deg, var(--bg-elements), var(--bg-interactive));
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 1rem;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+}
+
+.path-checkbox-card:hover {
+  border-color: var(--primary-alpha);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(255, 124, 61, 0.2);
+}
+
+.path-checkbox-card.selected {
+  border-color: var(--primary-color);
+  background: linear-gradient(135deg, rgba(255, 124, 61, 0.1), rgba(255, 124, 61, 0.05));
+  box-shadow: 0 4px 16px rgba(255, 124, 61, 0.3);
+}
+
+.path-checkbox-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.path-checkbox-icon {
+  width: 24px;
+  height: 24px;
+  background: var(--primary-color);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 0.8rem;
+}
+
+.path-checkbox-icon.nvidia-icon {
+  background: #4ade80; /* Green for NVIDIA */
+}
+
+.path-checkbox-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.path-checkbox-description {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  margin-bottom: 0.75rem;
+}
+
+.path-checkbox-input {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary-color);
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .path-checkbox-group {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Paths Preview Styles */
+.paths-preview {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+}
+
+.paths-preview-header {
+  margin-bottom: 0.75rem;
+}
+
+.paths-preview-header h4 {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.paths-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.preview-path {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-elements);
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  transition: var(--transition-smooth);
+}
+
+.preview-path:hover {
+  border-color: var(--border-light);
+  background: var(--bg-interactive);
+}
+
+.preview-path-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.preview-path-icon.medaltu-icon {
+  background: var(--primary-color);
+}
+
+.preview-path-icon.nvidia-icon {
+  background: #4ade80;
+}
+
+.preview-path-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.preview-path-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.2rem;
+}
+
+.preview-path-value {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: 'Courier New', monospace;
+  word-break: break-all;
+  line-height: 1.3;
+}
+
+.medaltu-preview {
+  border-color: rgba(255, 124, 61, 0.3);
+}
+
+.nvidia-preview {
+  border-color: rgba(74, 222, 128, 0.3);
+}
+
+.custom-preview {
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.preview-path-icon.custom-icon {
+  background: #3b82f6; /* Blue for custom */
+}
+
 /* Version Information Styles */
 .version-display {
   display: flex;
@@ -897,42 +1301,41 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem;
-  background: var(--bg-elements);
-  border-radius: 12px;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
   border: 1px solid var(--border-default);
 }
 
 .version-number {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--primary-color);
+  font-family: 'Courier New', monospace;
 }
 
 .version-toggle {
-  background: var(--bg-interactive);
-  border: 1px solid var(--border-default);
-  color: var(--text-secondary);
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 0.85rem;
-  font-weight: 500;
+  font-size: 0.8rem;
+  transition: var(--transition-smooth);
 }
 
 .version-toggle:hover {
-  background: var(--bg-elements);
+  border-color: var(--primary-color);
   color: var(--primary-color);
-  border-color: var(--border-accent);
 }
 
 .version-details {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem;
-  background: var(--bg-darkest);
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.1);
   border-radius: 8px;
   border: 1px solid var(--border-default);
 }
@@ -941,19 +1344,19 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: var(--text-primary);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }
 
 .version-item strong {
-  color: var(--text-secondary);
-  margin-right: 1rem;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .update-section {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .btn-update {
@@ -961,21 +1364,20 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, var(--bg-elements), var(--bg-interactive));
-  border: 1px solid var(--border-default);
-  color: var(--text-primary);
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+  border: none;
   border-radius: 8px;
+  color: white;
+  font-weight: 600;
   cursor: pointer;
   transition: var(--transition-smooth);
-  font-weight: 600;
-  min-height: 42px;
+  font-size: 0.9rem;
 }
 
-.btn-update:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--bg-interactive), var(--bg-elements));
-  border-color: var(--border-light);
-  transform: translateY(-2px);
+.btn-update:hover {
+  background: linear-gradient(135deg, var(--primary-light), var(--primary-color));
+  transform: translateY(-1px);
   box-shadow: var(--shadow-medium);
 }
 
@@ -997,25 +1399,26 @@ onMounted(() => {
 .update-info {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .update-available {
+  background: linear-gradient(135deg, rgba(74, 222, 128, 0.1), rgba(74, 222, 128, 0.05));
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 8px;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 1rem;
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 8px;
 }
 
 .update-message {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #22c55e;
+  color: #4ade80;
   font-weight: 600;
+  font-size: 0.9rem;
 }
 
 .btn-download {
@@ -1023,41 +1426,36 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, #22c55e, #16a34a);
+  padding: 0.6rem 1rem;
+  background: linear-gradient(135deg, #4ade80, #22c55e);
   border: none;
+  border-radius: 6px;
   color: white;
-  border-radius: 8px;
+  font-weight: 600;
   cursor: pointer;
   transition: var(--transition-smooth);
-  font-weight: 600;
-  align-self: flex-start;
+  font-size: 0.85rem;
 }
 
 .btn-download:hover {
-  background: linear-gradient(135deg, #16a34a, #15803d);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3);
 }
 
 .update-current {
-  padding: 0.75rem;
-  color: #22c55e;
+  color: #4ade80;
+  font-size: 0.9rem;
   font-weight: 500;
+  padding: 0.5rem;
   text-align: center;
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));
-  border: 1px solid rgba(34, 197, 94, 0.2);
-  border-radius: 8px;
 }
 
 .update-error {
-  padding: 0.75rem;
-  color: #ef4444;
-  font-weight: 500;
+  color: var(--error-color);
+  font-size: 0.85rem;
+  padding: 0.5rem;
   text-align: center;
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05));
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 8px;
 }
 
 .fade-slide-down-enter-active,
@@ -1065,207 +1463,9 @@ onMounted(() => {
   transition: all 0.3s ease;
 }
 
-.fade-slide-down-enter-from {
-  opacity: 0;
-  transform: translateY(-10px);
-}
-
+.fade-slide-down-enter-from,
 .fade-slide-down-leave-to {
   opacity: 0;
   transform: translateY(-10px);
-}
-
-/* Version Information Styles */
-.version-display {
-  background: linear-gradient(135deg, var(--bg-elements), var(--bg-interactive));
-  border-radius: 12px;
-  padding: 1.5rem;
-  border: 1px solid var(--border-default);
-}
-
-.version-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.version-number {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: var(--primary-color);
-  text-shadow: 0 1px 3px rgba(255, 124, 61, 0.3);
-}
-
-.version-toggle {
-  background: var(--bg-interactive);
-  border: 1px solid var(--border-default);
-  color: var(--text-secondary);
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: var(--transition-smooth);
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.version-toggle:hover {
-  background: var(--bg-elements);
-  border-color: var(--border-accent);
-  color: var(--primary-color);
-  transform: translateY(-1px);
-}
-
-.version-details {
-  background: var(--bg-darkest);
-  border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1.5rem;
-  border: 1px solid var(--border-default);
-}
-
-.version-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border-light);
-  font-size: 0.9rem;
-}
-
-.version-item:last-child {
-  border-bottom: none;
-}
-
-.version-item strong {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.update-section {
-  border-top: 1px solid var(--border-default);
-  padding-top: 1.5rem;
-}
-
-.btn-update {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: linear-gradient(135deg, var(--bg-interactive), var(--bg-elements));
-  border: 1px solid var(--border-default);
-  color: var(--text-primary);
-  padding: 0.75rem 1.25rem;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: var(--transition-smooth);
-  font-weight: 600;
-  margin-bottom: 1rem;
-}
-
-.btn-update:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--bg-elements), var(--bg-interactive));
-  border-color: var(--border-accent);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-medium);
-}
-
-.btn-update:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.spinning {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.update-info {
-  margin-top: 1rem;
-}
-
-.update-available {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));
-  border: 1px solid rgba(34, 197, 94, 0.2);
-  border-radius: 10px;
-  padding: 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.update-message {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: rgb(34, 197, 94);
-  font-weight: 600;
-}
-
-.btn-download {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: linear-gradient(135deg, rgb(34, 197, 94), rgb(22, 163, 74));
-  border: none;
-  color: white;
-  padding: 0.75rem 1.25rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: var(--transition-smooth);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.btn-download:hover {
-  background: linear-gradient(135deg, rgb(22, 163, 74), rgb(21, 128, 61));
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
-}
-
-.update-current {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  border-radius: 10px;
-  padding: 1rem;
-  text-align: center;
-  color: rgb(59, 130, 246);
-  font-weight: 600;
-}
-
-.update-error {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05));
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 10px;
-  padding: 1rem;
-  text-align: center;
-  color: rgb(239, 68, 68);
-  font-weight: 500;
-}
-
-/* Mobile responsive adjustments for version section */
-@media (max-width: 768px) {
-  .update-available {
-    flex-direction: column;
-    align-items: stretch;
-    text-align: center;
-  }
-  
-  .btn-download {
-    justify-content: center;
-    width: 100%;
-  }
-  
-  .version-main {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
-    text-align: center;
-  }
 }
 </style>

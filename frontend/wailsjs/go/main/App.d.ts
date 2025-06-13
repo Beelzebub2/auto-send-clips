@@ -21,6 +21,12 @@ export function GetDataPath():Promise<string>;
 
 export function GetFileSize(arg1:string):Promise<number>;
 
+export function GetMedalTVClipFolder():Promise<string>;
+
+export function GetMonitoredPaths():Promise<Array<string>>;
+
+export function GetNVIDIACurrentDirectory():Promise<string>;
+
 export function GetStatistics():Promise<main.Stats>;
 
 export function GetStorageInfo():Promise<Record<string, any>>;
@@ -54,6 +60,8 @@ export function OpenUpdateURL(arg1:string):Promise<void>;
 export function RemoveDesktopShortcut():Promise<void>;
 
 export function ResetSessionStats():Promise<void>;
+
+export function RestartMonitoring():Promise<void>;
 
 export function SaveConfig(arg1:main.Config):Promise<void>;
 

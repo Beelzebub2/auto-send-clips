@@ -8,7 +8,12 @@ const status = ref({
   isMonitoring: false,
   monitorPath: '',
   videosSent: 0,
-  audiosSent: 0
+  audiosSent: 0,
+  useMedalTV: false,
+  useNVIDIA: false,
+  useCustom: false,
+  medalTVPath: '',
+  nvidiaPath: ''
 })
 
 const isLoading = ref(true)
@@ -113,17 +118,45 @@ onUnmounted(() => {
             {{ status.isMonitoring ? 'Stop' : 'Start' }}
           </button>
         </div>
-      </div>
-
-      <div class="status-card full-width">
-        <div class="card-header">
-          <h3>Monitor Path</h3>
-          <Folder :size="20" class="icon" />
-        </div>
-        <div class="card-content">
-          <div class="monitor-path">{{ status.monitorPath || 'Not set' }}</div>
-        </div>
       </div>      <div class="status-card full-width">
+        <div class="card-header">
+          <h3>Monitor Paths</h3>
+          <Folder :size="20" class="icon" />
+        </div>        <div class="card-content">
+          <div class="paths-container">
+            <!-- Show MedalTV path if enabled -->
+            <div class="monitor-path medaltu-path" v-if="status.useMedalTV && status.medalTVPath">
+              <div class="path-label">
+                <div class="path-icon medaltu-icon">M</div>
+                MedalTV:
+              </div>
+              <div class="path-value">{{ status.medalTVPath }}</div>
+            </div>
+            
+            <!-- Show NVIDIA path if enabled -->
+            <div class="monitor-path nvidia-path" v-if="status.useNVIDIA && status.nvidiaPath">
+              <div class="path-label">
+                <div class="path-icon nvidia-icon">N</div>
+                NVIDIA:
+              </div>
+              <div class="path-value">{{ status.nvidiaPath }}</div>
+            </div>
+            
+            <!-- Show custom path if enabled -->
+            <div class="monitor-path custom-path" v-if="status.useCustom && status.monitorPath">
+              <div class="path-label">
+                <div class="path-icon custom-icon">C</div>
+                Custom:
+              </div>
+              <div class="path-value">{{ status.monitorPath }}</div>
+            </div>
+              <!-- Show fallback message if no paths -->
+            <div class="monitor-path no-paths" v-if="!status.useMedalTV && !status.useNVIDIA && !status.useCustom">
+              <div class="path-value">No monitoring paths configured</div>
+            </div>
+          </div>
+        </div>
+      </div><div class="status-card full-width">
         <div class="card-header">
           <h3>Total Clips Sent</h3>
           <Activity :size="20" class="icon" />
@@ -474,6 +507,94 @@ onUnmounted(() => {
   padding: 0.8rem;
   border-radius: 8px;
   border: 1px solid #3a4553;
+}
+
+.paths-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.monitor-path {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.75rem;
+  background: #2a3441;
+  border-radius: 8px;
+  border: 1px solid #3a4553;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.monitor-path:hover {
+  border-color: #4a5563;
+  background: #364152;
+}
+
+.path-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.path-value {
+  color: #94a3b8;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.path-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.medaltu-icon {
+  background: #ff7c3d;
+}
+
+.nvidia-icon {
+  background: #4ade80;
+}
+
+.custom-icon {
+  background: #3b82f6;
+}
+
+.medaltu-path {
+  border-color: rgba(255, 124, 61, 0.3);
+}
+
+.nvidia-path {
+  border-color: rgba(74, 222, 128, 0.3);
+}
+
+.custom-path {
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.no-paths {
+  border-color: rgba(148, 163, 184, 0.3);
+  text-align: center;
+}
+
+.no-paths .path-value {
+  color: #64748b;
+  font-style: italic;
 }
 
 .clips-stats {

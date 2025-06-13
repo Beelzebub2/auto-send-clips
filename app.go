@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -25,15 +26,31 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
+// MedalTVSettings represents the structure of MedalTV's settings.json
+type MedalTVSettings struct {
+	Recorder struct {
+		ClipFolder string `json:"clipFolder"`
+	} `json:"recorder"`
+}
+
+// NVIDIAGallerySettings represents the structure of NVIDIA's GallerySettings.json
+type NVIDIAGallerySettings struct {
+	Settings struct {
+		CurrentDirectoryV2 string `json:"currentDirectoryV2"`
+	} `json:"settings"`
+}
+
 // App struct
 type App struct {
 	ctx                 context.Context
-	watcher             *fsnotify.Watcher
+	watchers            map[string]*fsnotify.Watcher // Multiple watchers for different paths
+	watcherMutex        sync.Mutex                   // Protects watcher access
 	config              *Config
 	configManager       *ConfigManager // Kept for backward compatibility
 	isVisible           bool           // Tracks if window is visible
 	startTime           time.Time      // Track when app started
 	isMonitoring        bool           // Track monitoring status
+	monitoredPaths      []string       // List of currently monitored paths
 	notificationHandler *NotificationHandler
 	// Note: videosSent and audiosSent moved to persistent storage
 }
@@ -46,6 +63,11 @@ type AppStatus struct {
 	VideosSent   int    `json:"videosSent"`
 	AudiosSent   int    `json:"audiosSent"`
 	Version      string `json:"version"`
+	UseMedalTV   bool   `json:"useMedalTV"`
+	UseNVIDIA    bool   `json:"useNVIDIA"`
+	UseCustom    bool   `json:"useCustom"`
+	MedalTVPath  string `json:"medalTVPath"`
+	NVIDIAPath   string `json:"nvidiaPath"`
 }
 
 // NewApp creates a new App application struct
@@ -56,29 +78,34 @@ func NewApp() *App {
 	// Load config from config manager
 	config, err := configManager.LoadConfig()
 	if err != nil {
-		logger.Warn("Failed to load config: %v, using defaults", err)		// Create default config if loading fails
-		config = &Config{
-			MonitorPath:           `E:\Highlights\Clips\Screen Recording`,
-			MaxFileSize:           10, // 10MB
-			CheckInterval:         2,
-			StartupInitialization: true,
-			WindowsStartup:        false, // Default to disabled
-			DesktopShortcut:       false, // Default to disabled
-			Stats: Stats{
-				TotalClips:     0,
-				SessionClips:   0,
-				TotalSize:      0,
-				StartTime:      time.Now(),
-				LastUpdateTime: time.Now(),
-			},
-		}
+		logger.Warn("Failed to load config: %v, using defaults", err)
+		// LoadConfig now always returns a default config, so this shouldn't happen
 	}
 
+	// Ensure config is not nil (safety check)
+	if config == nil {
+		logger.Error("Config is nil, creating default config")
+		config = &Config{
+			WebhookURL:            "",
+			MonitorPath:           `E:\Highlights\Clips\Screen Recording`,
+			MaxFileSize:           10,
+			CheckInterval:         2,
+			StartupInitialization: true,
+			WindowsStartup:        false,
+			RecursiveMonitoring:   false,
+			DesktopShortcut:       false,
+			UseMedalTVPath:        false,
+			UseNVIDIAPath:         false,
+			UseCustomPath:         false,
+		}
+	}
 	app := &App{
-		config:        config,
-		configManager: configManager,
-		startTime:     time.Now(),
-		isMonitoring:  false,
+		config:         config,
+		configManager:  configManager,
+		startTime:      time.Now(),
+		isMonitoring:   false,
+		watchers:       make(map[string]*fsnotify.Watcher),
+		monitoredPaths: make([]string, 0),
 	}
 
 	// Create notification handler after app is initialized
@@ -132,62 +159,264 @@ func (a *App) SetWebhookURL(url string) error {
 	return a.configManager.SaveConfig(a.config)
 }
 
-// startFileWatcher starts monitoring the specified directory
+// startFileWatcher starts monitoring the specified directories
 func (a *App) startFileWatcher() {
-	var err error
-	a.watcher, err = fsnotify.NewWatcher()
-	if err != nil {
-		logger.Error("Error creating watcher: %v", err)
-		a.isMonitoring = false
+	a.watcherMutex.Lock()
+	defer a.watcherMutex.Unlock()
+
+	// Check if monitoring is already running
+	if a.isMonitoring {
 		return
 	}
-	defer a.watcher.Close()
+
+	// Get all paths to monitor
+	pathsToMonitor := a.getActivePaths()
+	if len(pathsToMonitor) == 0 {
+		logger.Info("No paths configured for monitoring")
+		return
+	}
+
+	a.isMonitoring = true
+	a.monitoredPaths = pathsToMonitor
+
+	defer func() {
+		a.stopAllWatchers()
+		a.isMonitoring = false
+		a.monitoredPaths = make([]string, 0)
+	}()
+
+	// Create watchers for each path
+	for _, path := range pathsToMonitor {
+		if err := a.createWatcherForPath(path); err != nil {
+			logger.Error("Failed to create watcher for path %s: %v", path, err)
+			continue
+		}
+	}
+
+	if len(a.watchers) == 0 {
+		logger.Error("No watchers could be created")
+		return
+	}
+
+	logger.Info("File monitoring started for %d paths: %v", len(a.watchers), pathsToMonitor)
+
+	// Release the mutex before entering the monitoring loop
+	a.watcherMutex.Unlock()
+
+	// Monitor all watchers
+	a.monitorWatchers()
+
+	a.watcherMutex.Lock()
+}
+
+// getActivePaths returns all paths that should be monitored
+func (a *App) getActivePaths() []string {
+	var paths []string
+
+	if a.config.UseMedalTVPath {
+		if medalPath, err := a.GetMedalTVClipFolder(); err == nil && medalPath != "" {
+			logger.Info("Adding MedalTV path to monitoring: %s", medalPath)
+			paths = append(paths, medalPath)
+		} else {
+			logger.Warn("MedalTV path enabled but could not get path: %v", err)
+		}
+	}
+
+	if a.config.UseNVIDIAPath {
+		if nvidiaPath, err := a.GetNVIDIACurrentDirectory(); err == nil && nvidiaPath != "" {
+			logger.Info("Adding NVIDIA path to monitoring: %s", nvidiaPath)
+			paths = append(paths, nvidiaPath)
+		} else {
+			logger.Warn("NVIDIA path enabled but could not get path: %v", err)
+		}
+	}
+
+	if a.config.UseCustomPath && a.config.MonitorPath != "" {
+		logger.Info("Adding custom path to monitoring: %s", a.config.MonitorPath)
+		paths = append(paths, a.config.MonitorPath)
+	}
+
+	logger.Info("Total active paths for monitoring: %d", len(paths))
+	return paths
+}
+
+// createWatcherForPath creates a watcher for a specific path
+func (a *App) createWatcherForPath(path string) error {
+	logger.Info("Creating watcher for path: %s", path)
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("error creating watcher for %s: %v", path, err)
+	}
 
 	// Add the directory to watch
-	err = a.watcher.Add(a.config.MonitorPath)
+	err = watcher.Add(path)
 	if err != nil {
-		logger.Error("Error adding path to watcher: %v", err)
-		a.isMonitoring = false
-		return
+		watcher.Close()
+		return fmt.Errorf("error adding path %s to watcher: %v", path, err)
 	}
+
+	logger.Info("Successfully added main path %s to watcher", path)
+
 	// If recursive monitoring is enabled, add all subdirectories
 	if a.config.RecursiveMonitoring {
-		err = a.addSubdirectories(a.config.MonitorPath)
+		logger.Info("Recursive monitoring enabled - scanning subdirectories for %s", path)
+		err = a.addSubdirectoriesToWatcher(watcher, path)
 		if err != nil {
-			logger.Warn("Error adding subdirectories: %v", err)
+			logger.Warn("Error adding subdirectories for %s: %v", path, err)
+			// Don't fail the entire operation - just warn
+		}
+	} else {
+		logger.Info("Recursive monitoring disabled - watching only %s", path)
+	}
+
+	a.watchers[path] = watcher
+	logger.Info("Created watcher for path: %s (recursive: %v)", path, a.config.RecursiveMonitoring)
+	return nil
+}
+
+// addSubdirectoriesToWatcher recursively adds all subdirectories to a specific watcher
+func (a *App) addSubdirectoriesToWatcher(watcher *fsnotify.Watcher, root string) error {
+	if watcher == nil {
+		return errors.New("watcher is not initialized")
+	}
+
+	dirCount := 0
+	maxDirs := 10000 // Limit to prevent system overload
+
+	logger.Info("Starting recursive directory scan for: %s", root)
+
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			logger.Warn("Error accessing path %s: %v", path, err)
+			return nil // Continue walking despite errors
+		}
+
+		if info.IsDir() && path != root {
+			dirCount++
+			if dirCount > maxDirs {
+				logger.Warn("Reached maximum directory limit (%d) for recursive monitoring in %s", maxDirs, root)
+				return filepath.SkipDir
+			}
+
+			if watcher == nil {
+				return errors.New("watcher became nil during operation")
+			}
+
+			err = watcher.Add(path)
+			if err != nil {
+				logger.Error("Error adding subdirectory %s to watcher: %v", path, err)
+				// Continue despite errors - don't fail the entire operation
+			} else {
+				logger.Debug("Added subdirectory to watch: %s", path)
+			}
+		}
+		return nil
+	})
+
+	logger.Info("Recursive scan completed for %s: %d directories added", root, dirCount)
+	return err
+}
+
+// monitorWatchers handles events from all watchers
+func (a *App) monitorWatchers() {
+	// Create channels to merge all watcher events
+	events := make(chan fsnotify.Event, 1000) // Increased buffer size
+	errors := make(chan error, 100)
+
+	// Start goroutines for each watcher
+	for path, watcher := range a.watchers {
+		go func(w *fsnotify.Watcher, p string) {
+			logger.Debug("Started monitoring goroutine for path: %s", p)
+			for {
+				select {
+				case event, ok := <-w.Events:
+					if !ok {
+						logger.Debug("Watcher events channel closed for path: %s", p)
+						return
+					}
+					events <- event
+				case err, ok := <-w.Errors:
+					if !ok {
+						logger.Debug("Watcher errors channel closed for path: %s", p)
+						return
+					}
+					errors <- fmt.Errorf("error from watcher %s: %v", p, err)
+				}
+			}
+		}(watcher, path)
+	}
+
+	logger.Info("Started monitoring %d paths with enhanced event handling", len(a.watchers))
+
+	// Main monitoring loop
+	eventCount := 0
+	for a.isMonitoring {
+		select {
+		case event := <-events:
+			eventCount++
+			if eventCount%100 == 0 {
+				logger.Debug("Processed %d events so far", eventCount)
+			}
+			a.handleWatcherEvent(event)
+		case err := <-errors:
+			logger.Error("Watcher error: %v", err)
+		case <-time.After(100 * time.Millisecond):
+			// Small timeout to prevent busy waiting
 		}
 	}
-	a.isMonitoring = true
-	logger.Info("File monitoring started: path=%s recursive=%v", a.config.MonitorPath, a.config.RecursiveMonitoring)
 
-	for {
-		select {
-		case event, ok := <-a.watcher.Events:
-			if !ok {
-				return
-			}
-			if event.Op&fsnotify.Create == fsnotify.Create {
-				// If it's a directory and recursive monitoring is enabled, add it to watcher
-				if a.config.RecursiveMonitoring {
-					if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
-						a.watcher.Add(event.Name)
+	logger.Info("Monitoring stopped after processing %d events", eventCount)
+}
+
+// handleWatcherEvent processes a file system event
+func (a *App) handleWatcherEvent(event fsnotify.Event) {
+	logger.Debug("File system event: %s - %s", event.Op, event.Name)
+
+	if event.Op&fsnotify.Create == fsnotify.Create {
+		// If it's a directory and recursive monitoring is enabled, add it to all relevant watchers
+		if a.config.RecursiveMonitoring {
+			if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
+				logger.Debug("New directory detected: %s", event.Name)
+				a.watcherMutex.Lock()
+				addedToWatchers := 0
+				for path, watcher := range a.watchers {
+					// Check if the new directory is under this watched path
+					if strings.HasPrefix(event.Name, path) && watcher != nil {
+						err := watcher.Add(event.Name)
+						if err != nil {
+							logger.Error("Failed to add new directory %s to watcher %s: %v", event.Name, path, err)
+						} else {
+							addedToWatchers++
+							logger.Debug("Added new directory %s to watcher %s", event.Name, path)
+						}
 					}
 				}
-
-				if a.isVideoFile(event.Name) {
-					logger.Info("New video file detected: %s", event.Name)
-					// Wait a bit for the file to be fully written
-					time.Sleep(time.Duration(a.config.CheckInterval) * time.Second)
-					a.handleNewVideo(event.Name)
+				a.watcherMutex.Unlock()
+				if addedToWatchers > 0 {
+					logger.Info("Added new directory %s to %d watchers", event.Name, addedToWatchers)
 				}
 			}
-		case err, ok := <-a.watcher.Errors:
-			if !ok {
-				return
-			}
-			logger.Error("Watcher error: %v", err)
+		}
+
+		if a.isVideoFile(event.Name) {
+			logger.Info("New video file detected: %s", event.Name)
+			// Wait a bit for the file to be fully written
+			time.Sleep(time.Duration(a.config.CheckInterval) * time.Second)
+			a.handleNewVideo(event.Name)
 		}
 	}
+}
+
+// stopAllWatchers closes all active watchers
+func (a *App) stopAllWatchers() {
+	for path, watcher := range a.watchers {
+		if watcher != nil {
+			watcher.Close()
+			logger.Debug("Closed watcher for path: %s", path)
+		}
+	}
+	a.watchers = make(map[string]*fsnotify.Watcher)
 }
 
 // ShowNotification triggers a notification for a new video
@@ -400,6 +629,15 @@ func (a *App) GetAppStatus() AppStatus {
 
 	// Get statistics from config
 	stats := a.GetStatistics()
+
+	// Get path information
+	var medalTVPath, nvidiaPath string
+	if a.config.UseMedalTVPath {
+		medalTVPath, _ = a.GetMedalTVClipFolder()
+	}
+	if a.config.UseNVIDIAPath {
+		nvidiaPath, _ = a.GetNVIDIACurrentDirectory()
+	}
 	return AppStatus{
 		Uptime:       formatDuration(uptime),
 		IsMonitoring: a.isMonitoring,
@@ -407,6 +645,11 @@ func (a *App) GetAppStatus() AppStatus {
 		VideosSent:   stats.TotalClips,   // Use total clips from storage
 		AudiosSent:   stats.SessionClips, // Use session clips for audio count
 		Version:      version.FormatVersion(),
+		UseMedalTV:   a.config.UseMedalTVPath,
+		UseNVIDIA:    a.config.UseNVIDIAPath,
+		UseCustom:    a.config.UseCustomPath,
+		MedalTVPath:  medalTVPath,
+		NVIDIAPath:   nvidiaPath,
 	}
 }
 
@@ -418,11 +661,11 @@ func (a *App) SaveConfig(config Config) error {
 
 // UpdateMonitorPath updates the monitor path and restarts watcher
 func (a *App) UpdateMonitorPath(path string) error {
-	// Stop current watcher if running
-	if a.watcher != nil {
-		a.watcher.Close()
-		a.isMonitoring = false
-	}
+	a.watcherMutex.Lock()
+	defer a.watcherMutex.Unlock()
+
+	// Stop current watchers if running
+	a.stopAllWatchersLocked()
 
 	// Update config
 	a.config.MonitorPath = path
@@ -431,7 +674,7 @@ func (a *App) UpdateMonitorPath(path string) error {
 		return err
 	}
 
-	// Restart watcher with new path
+	// Restart watchers with new configuration
 	go a.startFileWatcher()
 	return nil
 }
@@ -444,13 +687,51 @@ func (a *App) StartMonitoring() error {
 	return nil
 }
 
+// RestartMonitoring restarts file monitoring with current configuration
+func (a *App) RestartMonitoring() error {
+	logger.Info("Restarting monitoring with current configuration")
+
+	a.watcherMutex.Lock()
+	defer a.watcherMutex.Unlock()
+
+	// Stop current watchers
+	a.stopAllWatchersLocked()
+
+	// Start new monitoring
+	go a.startFileWatcher()
+
+	logger.Info("Monitoring restart initiated")
+	return nil
+}
+
 // StopMonitoring stops the file monitoring
 func (a *App) StopMonitoring() error {
-	if a.watcher != nil {
-		a.watcher.Close()
-		a.isMonitoring = false
-	}
+	a.watcherMutex.Lock()
+	defer a.watcherMutex.Unlock()
+
+	a.stopAllWatchersLocked()
 	return nil
+}
+
+// GetMonitoredPaths returns the currently monitored paths
+func (a *App) GetMonitoredPaths() []string {
+	a.watcherMutex.Lock()
+	defer a.watcherMutex.Unlock()
+
+	return append([]string(nil), a.monitoredPaths...) // Return a copy
+}
+
+// stopAllWatchersLocked stops all watchers (assumes mutex is already locked)
+func (a *App) stopAllWatchersLocked() {
+	a.isMonitoring = false
+	for path, watcher := range a.watchers {
+		if watcher != nil {
+			watcher.Close()
+			logger.Debug("Closed watcher for path: %s", path)
+		}
+	}
+	a.watchers = make(map[string]*fsnotify.Watcher)
+	a.monitoredPaths = make([]string, 0)
 }
 
 // SelectFolder opens a folder selection dialog
@@ -639,24 +920,6 @@ func (a *App) IsInWindowsStartup() bool {
 	return err == nil
 }
 
-// addSubdirectories recursively adds all subdirectories to the watcher
-func (a *App) addSubdirectories(root string) error {
-	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() && path != root {
-			err = a.watcher.Add(path)
-			if err != nil {
-				logger.Error("Error adding subdirectory %s to watcher: %v", path, err)
-			} else {
-				logger.Debug("Added subdirectory to watch: %s", path)
-			}
-		}
-		return nil
-	})
-}
-
 // GetVersionInfo returns detailed version information
 func (a *App) GetVersionInfo() map[string]string {
 	return version.GetDetailedVersionInfo()
@@ -709,7 +972,7 @@ func (a *App) CreateDesktopShortcut() error {
 		logger.Error("failed to get desktop path: %v", err)
 		return errors.New("failed to get desktop path")
 	}
-	
+
 	desktopPath := strings.TrimSpace(string(desktopBytes))
 	if desktopPath == "" {
 		// Fallback to default path
@@ -726,7 +989,7 @@ func (a *App) CreateDesktopShortcut() error {
 		logger.Error("failed to create desktop directory: %v", err)
 		return errors.New("failed to create desktop directory")
 	}
-	
+
 	shortcutPath := filepath.Join(desktopPath, "AutoClipSend.lnk")
 
 	// Create PowerShell script to create the shortcut using proper escaping
@@ -759,7 +1022,7 @@ $Shortcut.Save()
 func (a *App) RemoveDesktopShortcut() error {
 	// Windows process creation flags
 	const CREATE_NO_WINDOW = 0x08000000
-	
+
 	// Get the desktop path using PowerShell to get the actual Desktop folder location
 	psGetDesktopScript := `[Environment]::GetFolderPath('Desktop')`
 	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", psGetDesktopScript)
@@ -772,7 +1035,7 @@ func (a *App) RemoveDesktopShortcut() error {
 		logger.Error("failed to get desktop path: %v", err)
 		return errors.New("failed to get desktop path")
 	}
-	
+
 	desktopPath := strings.TrimSpace(string(desktopBytes))
 	if desktopPath == "" {
 		// Fallback to default path
@@ -783,7 +1046,7 @@ func (a *App) RemoveDesktopShortcut() error {
 		}
 		desktopPath = filepath.Join(homeDir, "Desktop")
 	}
-	
+
 	shortcutPath := filepath.Join(desktopPath, "AutoClipSend.lnk")
 
 	// Check if shortcut exists
@@ -807,7 +1070,7 @@ func (a *App) RemoveDesktopShortcut() error {
 func (a *App) HasDesktopShortcut() bool {
 	// Windows process creation flags
 	const CREATE_NO_WINDOW = 0x08000000
-	
+
 	// Get the desktop path using PowerShell to get the actual Desktop folder location
 	psGetDesktopScript := `[Environment]::GetFolderPath('Desktop')`
 	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", psGetDesktopScript)
@@ -827,7 +1090,7 @@ func (a *App) HasDesktopShortcut() bool {
 		_, err = os.Stat(shortcutPath)
 		return err == nil
 	}
-	
+
 	desktopPath := strings.TrimSpace(string(desktopBytes))
 	if desktopPath == "" {
 		// Fallback to default path
@@ -837,7 +1100,7 @@ func (a *App) HasDesktopShortcut() bool {
 		}
 		desktopPath = filepath.Join(homeDir, "Desktop")
 	}
-	
+
 	shortcutPath := filepath.Join(desktopPath, "AutoClipSend.lnk")
 	_, err = os.Stat(shortcutPath)
 	return err == nil
@@ -863,4 +1126,88 @@ func (a *App) SetDesktopShortcut(enabled bool) error {
 	}
 
 	return a.configManager.SaveConfig(a.config)
+}
+
+// GetMedalTVClipFolder reads the clipFolder path from MedalTV's settings.json
+func (a *App) GetMedalTVClipFolder() (string, error) {
+	// Get user's AppData directory
+	appDataPath := os.Getenv("APPDATA")
+	if appDataPath == "" {
+		return "", errors.New("APPDATA environment variable not found")
+	}
+
+	// Construct path to MedalTV settings file
+	medalSettingsPath := filepath.Join(appDataPath, "Medal", "store", "settings.json")
+
+	// Check if file exists
+	if _, err := os.Stat(medalSettingsPath); os.IsNotExist(err) {
+		return "", errors.New("MedalTV settings file not found - is MedalTV installed?")
+	}
+
+	// Read the file
+	data, err := os.ReadFile(medalSettingsPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read MedalTV settings: %v", err)
+	}
+
+	// Parse JSON
+	var settings MedalTVSettings
+	err = json.Unmarshal(data, &settings)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse MedalTV settings: %v", err)
+	}
+
+	clipFolder := settings.Recorder.ClipFolder
+	if clipFolder == "" {
+		return "", errors.New("clipFolder not found in MedalTV settings")
+	}
+
+	// Verify the path exists
+	if _, err := os.Stat(clipFolder); os.IsNotExist(err) {
+		return "", fmt.Errorf("MedalTV clip folder does not exist: %s", clipFolder)
+	}
+
+	return clipFolder, nil
+}
+
+// GetNVIDIACurrentDirectory reads the currentDirectoryV2 path from NVIDIA's GallerySettings.json
+func (a *App) GetNVIDIACurrentDirectory() (string, error) {
+	// Get user's Local AppData directory
+	localAppDataPath := os.Getenv("LOCALAPPDATA")
+	if localAppDataPath == "" {
+		return "", errors.New("LOCALAPPDATA environment variable not found")
+	}
+
+	// Construct path to NVIDIA settings file
+	nvidiaSettingsPath := filepath.Join(localAppDataPath, "NVIDIA Corporation", "NVIDIA Overlay", "GallerySettings.json")
+
+	// Check if file exists
+	if _, err := os.Stat(nvidiaSettingsPath); os.IsNotExist(err) {
+		return "", errors.New("NVIDIA GallerySettings file not found - is NVIDIA Overlay installed?")
+	}
+
+	// Read the file
+	data, err := os.ReadFile(nvidiaSettingsPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read NVIDIA settings: %v", err)
+	}
+
+	// Parse JSON
+	var settings NVIDIAGallerySettings
+	err = json.Unmarshal(data, &settings)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse NVIDIA settings: %v", err)
+	}
+
+	currentDirectory := settings.Settings.CurrentDirectoryV2
+	if currentDirectory == "" {
+		return "", errors.New("currentDirectoryV2 not found in NVIDIA settings")
+	}
+
+	// Verify the path exists
+	if _, err := os.Stat(currentDirectory); os.IsNotExist(err) {
+		return "", fmt.Errorf("NVIDIA current directory does not exist: %s", currentDirectory)
+	}
+
+	return currentDirectory, nil
 }
