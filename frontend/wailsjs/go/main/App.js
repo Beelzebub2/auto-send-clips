@@ -38,6 +38,18 @@ export function GetFileSize(arg1) {
   return window['go']['main']['App']['GetFileSize'](arg1);
 }
 
+export function GetMedalTVClipFolder() {
+  return window['go']['main']['App']['GetMedalTVClipFolder']();
+}
+
+export function GetMonitoredPaths() {
+  return window['go']['main']['App']['GetMonitoredPaths']();
+}
+
+export function GetNVIDIACurrentDirectory() {
+  return window['go']['main']['App']['GetNVIDIACurrentDirectory']();
+}
+
 export function GetStatistics() {
   return window['go']['main']['App']['GetStatistics']();
 }
@@ -104,6 +116,10 @@ export function RemoveDesktopShortcut() {
 
 export function ResetSessionStats() {
   return window['go']['main']['App']['ResetSessionStats']();
+}
+
+export function RestartMonitoring() {
+  return window['go']['main']['App']['RestartMonitoring']();
 }
 
 export function SaveConfig(arg1) {
