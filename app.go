@@ -33,6 +33,30 @@ type MedalTVSettings struct {
 	} `json:"recorder"`
 }
 
+// MedalTVClip represents a single clip entry in Medal TV's clips.json
+type MedalTVClip struct {
+	Content struct {
+		ContentID          string `json:"contentId"`
+		ContentType        int    `json:"contentType"`
+		CategoryID         string `json:"categoryId"`
+		Privacy            int    `json:"privacy"`
+		HasTitle           bool   `json:"hasTitle"`
+		ContentTitle       string `json:"contentTitle"`
+		ContentDescription string `json:"contentDescription"`
+		LocalContentURL    string `json:"localContentUrl"`
+		State              struct {
+			Type        string `json:"type"`
+			IsSuccess   bool   `json:"isSuccess"`
+			IsShareable bool   `json:"isShareable"`
+		} `json:"state"`
+	} `json:"Content"`
+}
+
+// MedalTVClipsData represents the structure of Medal TV's clips.json
+type MedalTVClipsData struct {
+	Clips []MedalTVClip `json:"clips"`
+}
+
 // NVIDIAGallerySettings represents the structure of NVIDIA's GallerySettings.json
 type NVIDIAGallerySettings struct {
 	Settings struct {
@@ -123,9 +147,28 @@ func (a *App) startup(ctx context.Context) {
 	// Initialize the system tray first to ensure it's available
 	a.InitTray()
 
+	// Add debug logging to check configuration
+	logger.Info("=== STARTUP DEBUG INFO ===")
+	logger.Info("StartupInitialization: %v", a.config.StartupInitialization)
+	logger.Info("UseMedalTVPath: %v", a.config.UseMedalTVPath)
+	logger.Info("UseNVIDIAPath: %v", a.config.UseNVIDIAPath)
+	logger.Info("UseCustomPath: %v", a.config.UseCustomPath)
+	logger.Info("MonitorPath: %s", a.config.MonitorPath)
+
+	// Test Medal TV path detection
+	if medalPath, err := a.GetMedalTVClipFolder(); err == nil {
+		logger.Info("Medal TV path detected: %s", medalPath)
+	} else {
+		logger.Info("Medal TV path error: %v", err)
+	}
+
+	logger.Info("=== END STARTUP DEBUG INFO ===")
+
 	// Start file watcher in a goroutine only if startup initialization is enabled
 	if a.config.StartupInitialization {
 		go a.startFileWatcher()
+	} else {
+		logger.Info("StartupInitialization is disabled - file watcher not started automatically")
 	}
 }
 
@@ -371,7 +414,7 @@ func (a *App) monitorWatchers() {
 
 // handleWatcherEvent processes a file system event
 func (a *App) handleWatcherEvent(event fsnotify.Event) {
-	logger.Debug("File system event: %s - %s", event.Op, event.Name)
+	logger.Info("File system event: %s - %s", event.Op, event.Name)
 
 	if event.Op&fsnotify.Create == fsnotify.Create {
 		// If it's a directory and recursive monitoring is enabled, add it to all relevant watchers
@@ -404,6 +447,8 @@ func (a *App) handleWatcherEvent(event fsnotify.Event) {
 			// Wait a bit for the file to be fully written
 			time.Sleep(time.Duration(a.config.CheckInterval) * time.Second)
 			a.handleNewVideo(event.Name)
+		} else {
+			logger.Info("Non-video file created: %s", event.Name)
 		}
 	}
 }
@@ -530,6 +575,19 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 	err = a.sendFileToDiscord(finalPath, customName)
 	if err != nil {
 		return err
+	}
+
+	// Update Medal TV clips.json if this is a Medal TV clip and custom name is provided
+	if a.isMedalTVClip(filePath) {
+		titleToSet := customName
+		if titleToSet == "" {
+			titleToSet = "Untitled"
+		}
+		err = a.updateMedalTVClipTitle(filePath, titleToSet)
+		if err != nil {
+			logger.Warn("Failed to update Medal TV clip title: %v", err)
+			// Don't return error, just log it as this is not critical
+		}
 	}
 
 	// Get file size for statistics
@@ -1059,7 +1117,7 @@ func (a *App) RemoveDesktopShortcut() error {
 	err = os.Remove(shortcutPath)
 	if err != nil {
 		logger.Error("failed to remove desktop shortcut: %v", err)
-		return errors.New("failed to remove desktop shortcut: " + err.Error())
+		return errors.New("failed to remove desktop shortcut" + err.Error())
 	}
 
 	logger.Info("Desktop shortcut removed successfully from: %s", shortcutPath)
@@ -1210,4 +1268,129 @@ func (a *App) GetNVIDIACurrentDirectory() (string, error) {
 	}
 
 	return currentDirectory, nil
+}
+
+// isMedalTVClip checks if a file is from Medal TV by comparing its path with the Medal TV clip folder
+func (a *App) isMedalTVClip(filePath string) bool {
+	if !a.config.UseMedalTVPath {
+		return false
+	}
+
+	medalTVPath, err := a.GetMedalTVClipFolder()
+	if err != nil {
+		return false
+	}
+
+	// Normalize paths for comparison
+	absFilePath, err := filepath.Abs(filePath)
+	if err != nil {
+		return false
+	}
+
+	absMedalPath, err := filepath.Abs(medalTVPath)
+	if err != nil {
+		return false
+	}
+
+	// Check if the file is within the Medal TV clip folder
+	return strings.HasPrefix(absFilePath, absMedalPath)
+}
+
+// updateMedalTVClipTitle updates the contentTitle in Medal TV's clips.json file for a specific clip
+func (a *App) updateMedalTVClipTitle(filePath, customTitle string) error {
+	// Get Medal TV clips.json path
+	appDataPath := os.Getenv("APPDATA")
+	if appDataPath == "" {
+		return errors.New("APPDATA environment variable not found")
+	}
+
+	clipsJSONPath := filepath.Join(appDataPath, "Medal", "store", "clips.json")
+
+	// Check if file exists
+	if _, err := os.Stat(clipsJSONPath); os.IsNotExist(err) {
+		return errors.New("Medal TV clips.json file not found")
+	}
+
+	// Read the file
+	data, err := os.ReadFile(clipsJSONPath)
+	if err != nil {
+		return fmt.Errorf("failed to read clips.json: %v", err)
+	}
+
+	// Parse JSON as generic map to preserve structure
+	var clipsData map[string]interface{}
+	err = json.Unmarshal(data, &clipsData)
+	if err != nil {
+		return fmt.Errorf("failed to parse clips.json: %v", err)
+	}
+
+	// Get the clips array
+	clips, ok := clipsData["clips"].([]interface{})
+	if !ok {
+		return errors.New("clips array not found in clips.json")
+	}
+
+	// Normalize the file path for comparison
+	absFilePath, err := filepath.Abs(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path: %v", err)
+	}
+
+	// Find the clip with matching localContentUrl and update its contentTitle
+	updated := false
+	for _, clip := range clips {
+		clipMap, ok := clip.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		content, ok := clipMap["Content"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		localContentURL, ok := content["localContentUrl"].(string)
+		if !ok {
+			continue
+		}
+
+		// Normalize the local content URL for comparison
+		absLocalURL, err := filepath.Abs(localContentURL)
+		if err != nil {
+			continue
+		}
+
+		// Check if this is the clip we're looking for
+		if absFilePath == absLocalURL {
+			// Update the content title
+			if customTitle != "" {
+				content["contentTitle"] = customTitle
+				content["hasTitle"] = true
+			} else {
+				content["contentTitle"] = "Untitled"
+				content["hasTitle"] = false
+			}
+			updated = true
+			logger.Info("Updated Medal TV clip title for %s to: %s", filepath.Base(filePath), customTitle)
+			break
+		}
+	}
+
+	if !updated {
+		logger.Warn("Could not find clip in clips.json for file: %s", filePath)
+		return nil // Don't treat this as an error, just log it
+	}
+
+	// Write the updated data back to the file
+	updatedData, err := json.MarshalIndent(clipsData, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated clips.json: %v", err)
+	}
+
+	err = os.WriteFile(clipsJSONPath, updatedData, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write updated clips.json: %v", err)
+	}
+
+	return nil
 }
