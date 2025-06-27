@@ -35,21 +35,38 @@ type MedalTVSettings struct {
 
 // MedalTVClip represents a single clip entry in Medal TV's clips.json
 type MedalTVClip struct {
-	Content struct {
-		ContentID          string `json:"contentId"`
-		ContentType        int    `json:"contentType"`
-		CategoryID         string `json:"categoryId"`
-		Privacy            int    `json:"privacy"`
-		HasTitle           bool   `json:"hasTitle"`
-		ContentTitle       string `json:"contentTitle"`
-		ContentDescription string `json:"contentDescription"`
-		LocalContentURL    string `json:"localContentUrl"`
-		State              struct {
+	UUID        string  `json:"uuid"`
+	ClipID      string  `json:"clipID"`
+	Status      string  `json:"Status"`
+	FilePath    string  `json:"FilePath"`
+	Image       string  `json:"Image"`
+	GameTitle   string  `json:"GameTitle"`
+	TimeCreated float64 `json:"TimeCreated"`
+	ClipType    string  `json:"clipType"`
+	Content     struct {
+		ContentTitle      string  `json:"contentTitle"`
+		VideoLengthSeconds float64 `json:"videoLengthSeconds"`
+		LocalContentURL   string  `json:"localContentUrl"`
+		ThumbnailURL      string  `json:"thumbnailUrl"`
+		State             struct {
 			Type        string `json:"type"`
 			IsSuccess   bool   `json:"isSuccess"`
 			IsShareable bool   `json:"isShareable"`
 		} `json:"state"`
 	} `json:"Content"`
+}
+
+// ClipDisplayData represents clip data optimized for frontend display
+type ClipDisplayData struct {
+	UUID         string  `json:"uuid"`
+	Title        string  `json:"title"`
+	GameTitle    string  `json:"gameTitle"`
+	TimeCreated  int64   `json:"timeCreated"`
+	Duration     float64 `json:"duration"`
+	Thumbnail    string  `json:"thumbnail"`
+	ThumbnailURL string  `json:"thumbnailUrl"`
+	FilePath     string  `json:"filePath"`
+	Status       string  `json:"status"`
 }
 
 // MedalTVClipsData represents the structure of Medal TV's clips.json
@@ -1393,4 +1410,111 @@ func (a *App) updateMedalTVClipTitle(filePath, customTitle string) error {
 	}
 
 	return nil
+}
+
+// GetMedalTVClips reads and returns all clips from Medal TV's clips.json file
+func (a *App) GetMedalTVClips() ([]ClipDisplayData, error) {
+	// Get Medal TV clips.json path
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user home directory: %v", err)
+	}
+
+	appDataPath := filepath.Join(homeDir, "AppData", "Roaming")
+	clipsJSONPath := filepath.Join(appDataPath, "Medal", "store", "clips.json")
+
+	// Check if file exists
+	if _, err := os.Stat(clipsJSONPath); os.IsNotExist(err) {
+		return nil, errors.New("Medal TV clips.json file not found")
+	}
+
+	// Read the file
+	data, err := os.ReadFile(clipsJSONPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read clips.json: %v", err)
+	}
+
+	// Parse the JSON as a map of clips
+	var clipsMap map[string]MedalTVClip
+	if err := json.Unmarshal(data, &clipsMap); err != nil {
+		return nil, fmt.Errorf("failed to parse clips.json: %v", err)
+	}
+
+	// Convert to display data and sort by time (latest first)
+	var clips []ClipDisplayData
+	for uuid, clip := range clipsMap {
+		// Only include clips with proper file paths
+		if clip.FilePath == "" {
+			continue
+		}
+
+		// Check if video file exists
+		if _, err := os.Stat(clip.FilePath); os.IsNotExist(err) {
+			continue
+		}
+
+		// Determine the display title
+		title := clip.Content.ContentTitle
+		if title == "" {
+			title = clip.GameTitle
+		}
+		if title == "" {
+			title = "Untitled Clip"
+		}
+
+		clipData := ClipDisplayData{
+			UUID:         uuid,
+			Title:        title,
+			GameTitle:    clip.GameTitle,
+			TimeCreated:  int64(clip.TimeCreated),
+			Duration:     clip.Content.VideoLengthSeconds,
+			Thumbnail:    clip.Image,
+			ThumbnailURL: clip.Content.ThumbnailURL,
+			FilePath:     clip.FilePath,
+			Status:       clip.Status,
+		}
+		clips = append(clips, clipData)
+	}
+
+	// Sort clips by time created (latest first)
+	for i := 0; i < len(clips)-1; i++ {
+		for j := i + 1; j < len(clips); j++ {
+			if clips[i].TimeCreated < clips[j].TimeCreated {
+				clips[i], clips[j] = clips[j], clips[i]
+			}
+		}
+	}
+
+	return clips, nil
+}
+
+// SendClipToDiscord sends a specific clip to Discord
+func (a *App) SendClipToDiscord(clipUUID string) error {
+	// Get the clip data
+	clips, err := a.GetMedalTVClips()
+	if err != nil {
+		return fmt.Errorf("failed to get clips: %v", err)
+	}
+
+	// Find the specific clip
+	var targetClip *ClipDisplayData
+	for _, clip := range clips {
+		if clip.UUID == clipUUID {
+			targetClip = &clip
+			break
+		}
+	}
+
+	if targetClip == nil {
+		return errors.New("clip not found")
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(targetClip.FilePath); os.IsNotExist(err) {
+		return errors.New("clip file not found")
+	}
+
+	// Use existing SendToDiscord function with custom name
+	customName := fmt.Sprintf("%s_%d", targetClip.Title, targetClip.TimeCreated)
+	return a.SendToDiscord(targetClip.FilePath, customName, false)
 }

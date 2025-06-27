@@ -23,6 +23,8 @@ export function GetFileSize(arg1:string):Promise<number>;
 
 export function GetMedalTVClipFolder():Promise<string>;
 
+export function GetMedalTVClips():Promise<Array<main.ClipDisplayData>>;
+
 export function GetMonitoredPaths():Promise<Array<string>>;
 
 export function GetNVIDIACurrentDirectory():Promise<string>;
@@ -66,6 +68,8 @@ export function RestartMonitoring():Promise<void>;
 export function SaveConfig(arg1:main.Config):Promise<void>;
 
 export function SelectFolder():Promise<string>;
+
+export function SendClipToDiscord(arg1:string):Promise<void>;
 
 export function SendToDiscord(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 

@@ -42,6 +42,10 @@ export function GetMedalTVClipFolder() {
   return window['go']['main']['App']['GetMedalTVClipFolder']();
 }
 
+export function GetMedalTVClips() {
+  return window['go']['main']['App']['GetMedalTVClips']();
+}
+
 export function GetMonitoredPaths() {
   return window['go']['main']['App']['GetMonitoredPaths']();
 }
@@ -128,6 +132,10 @@ export function SaveConfig(arg1) {
 
 export function SelectFolder() {
   return window['go']['main']['App']['SelectFolder']();
+}
+
+export function SendClipToDiscord(arg1) {
+  return window['go']['main']['App']['SendClipToDiscord'](arg1);
 }
 
 export function SendToDiscord(arg1, arg2, arg3) {

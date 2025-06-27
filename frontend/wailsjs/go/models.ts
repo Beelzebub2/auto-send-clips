@@ -32,6 +32,34 @@ export namespace main {
 	        this.nvidiaPath = source["nvidiaPath"];
 	    }
 	}
+	export class ClipDisplayData {
+	    uuid: string;
+	    title: string;
+	    gameTitle: string;
+	    timeCreated: number;
+	    duration: number;
+	    thumbnail: string;
+	    thumbnailUrl: string;
+	    filePath: string;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ClipDisplayData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.uuid = source["uuid"];
+	        this.title = source["title"];
+	        this.gameTitle = source["gameTitle"];
+	        this.timeCreated = source["timeCreated"];
+	        this.duration = source["duration"];
+	        this.thumbnail = source["thumbnail"];
+	        this.thumbnailUrl = source["thumbnailUrl"];
+	        this.filePath = source["filePath"];
+	        this.status = source["status"];
+	    }
+	}
 	export class Config {
 	    webhook_url: string;
 	    discord_webhook: string;

@@ -1,8 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Activity, Settings } from 'lucide-vue-next'
+import { Activity, Settings, Film } from 'lucide-vue-next'
 import StatusPage from './components/StatusPage.vue'
 import ConfigPage from './components/ConfigPage.vue'
+import ClipsPage from './components/ClipsPage.vue'
 import Notification from './components/Notification.vue'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 
@@ -39,6 +40,14 @@ onMounted(() => {
           Status
         </button>
         <button 
+          :class="{ active: currentPage === 'clips' }"
+          @click="switchPage('clips')"
+          class="nav-button"
+        >
+          <Film :size="16" />
+          Clips
+        </button>
+        <button 
           :class="{ active: currentPage === 'config' }"
           @click="switchPage('config')"
           class="nav-button"
@@ -51,6 +60,7 @@ onMounted(() => {
 
     <main class="main-content">
       <StatusPage v-if="currentPage === 'status'" />
+      <ClipsPage v-if="currentPage === 'clips'" />
       <ConfigPage v-if="currentPage === 'config'" />
     </main>
     
