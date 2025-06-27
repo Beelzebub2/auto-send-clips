@@ -44,11 +44,11 @@ type MedalTVClip struct {
 	TimeCreated float64 `json:"TimeCreated"`
 	ClipType    string  `json:"clipType"`
 	Content     struct {
-		ContentTitle      string  `json:"contentTitle"`
+		ContentTitle       string  `json:"contentTitle"`
 		VideoLengthSeconds float64 `json:"videoLengthSeconds"`
-		LocalContentURL   string  `json:"localContentUrl"`
-		ThumbnailURL      string  `json:"thumbnailUrl"`
-		State             struct {
+		LocalContentURL    string  `json:"localContentUrl"`
+		ThumbnailURL       string  `json:"thumbnailUrl"`
+		State              struct {
 			Type        string `json:"type"`
 			IsSuccess   bool   `json:"isSuccess"`
 			IsShareable bool   `json:"isShareable"`
@@ -216,7 +216,14 @@ func (a *App) GetConfig() *Config {
 // SetWebhookURL sets the Discord webhook URL
 func (a *App) SetWebhookURL(url string) error {
 	a.config.WebhookURL = url
-	return a.configManager.SaveConfig(a.config)
+	err := a.configManager.SaveConfig(a.config)
+	
+	// Emit event to notify frontend of config changes
+	if err == nil {
+		runtime.EventsEmit(a.ctx, "config-updated")
+	}
+	
+	return err
 }
 
 // startFileWatcher starts monitoring the specified directories
@@ -731,7 +738,14 @@ func (a *App) GetAppStatus() AppStatus {
 // SaveConfig saves the entire configuration
 func (a *App) SaveConfig(config Config) error {
 	a.config = &config
-	return a.configManager.SaveConfig(a.config)
+	err := a.configManager.SaveConfig(a.config)
+	
+	// Emit event to notify frontend of config changes
+	if err == nil {
+		runtime.EventsEmit(a.ctx, "config-updated")
+	}
+	
+	return err
 }
 
 // UpdateMonitorPath updates the monitor path and restarts watcher
@@ -748,6 +762,9 @@ func (a *App) UpdateMonitorPath(path string) error {
 	if err != nil {
 		return err
 	}
+	
+	// Emit event to notify frontend of config changes
+	runtime.EventsEmit(a.ctx, "config-updated")
 
 	// Restart watchers with new configuration
 	go a.startFileWatcher()

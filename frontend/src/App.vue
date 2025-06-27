@@ -6,20 +6,51 @@ import ConfigPage from './components/ConfigPage.vue'
 import ClipsPage from './components/ClipsPage.vue'
 import Notification from './components/Notification.vue'
 import { EventsOn } from '../wailsjs/runtime/runtime'
+import { GetConfig } from '../wailsjs/go/main/App'
 
 const currentPage = ref('status')
+const config = ref(null)
+const isMedalTVActive = ref(false)
 
 const switchPage = (page) => {
+  // If trying to switch to clips but Medal TV is not active, switch to status instead
+  if (page === 'clips' && !isMedalTVActive.value) {
+    currentPage.value = 'status'
+    return
+  }
   currentPage.value = page
 }
 
+const loadConfig = async () => {
+  try {
+    const configData = await GetConfig()
+    config.value = configData
+    isMedalTVActive.value = configData?.use_medaltv_path || false
+    
+    // If currently on clips page but Medal TV is not active, switch to status
+    if (currentPage.value === 'clips' && !isMedalTVActive.value) {
+      currentPage.value = 'status'
+    }
+  } catch (error) {
+    console.error('Failed to load config:', error)
+  }
+}
+
 onMounted(() => {
-  // Only listen for app state changes here.
+  // Load config on startup
+  loadConfig()
+  
+  // Listen for app state changes
   EventsOn('app-minimized-to-tray', () => {
     console.log('App minimized to tray')
   })
   EventsOn('app-restored-from-tray', () => {
     console.log('App restored from tray')
+  })
+  
+  // Listen for config changes and reload
+  EventsOn('config-updated', () => {
+    loadConfig()
   })
 })
 </script>
@@ -31,27 +62,20 @@ onMounted(() => {
         <h1>AutoClipSend</h1>
       </div>
       <div class="nav-menu">
-        <button 
-          :class="{ active: currentPage === 'status' }"
-          @click="switchPage('status')"
-          class="nav-button"
-        >
+        <button :class="{ active: currentPage === 'status' }" @click="switchPage('status')" class="nav-button">
           <Activity :size="16" />
           Status
         </button>
         <button 
-          :class="{ active: currentPage === 'clips' }"
-          @click="switchPage('clips')"
+          v-if="isMedalTVActive"
+          :class="{ active: currentPage === 'clips' }" 
+          @click="switchPage('clips')" 
           class="nav-button"
         >
           <Film :size="16" />
           Clips
         </button>
-        <button 
-          :class="{ active: currentPage === 'config' }"
-          @click="switchPage('config')"
-          class="nav-button"
-        >
+        <button :class="{ active: currentPage === 'config' }" @click="switchPage('config')" class="nav-button">
           <Settings :size="16" />
           Settings
         </button>
@@ -63,7 +87,7 @@ onMounted(() => {
       <ClipsPage v-if="currentPage === 'clips'" />
       <ConfigPage v-if="currentPage === 'config'" />
     </main>
-    
+
     <!-- Notification Modal - Always present to catch events -->
     <Notification />
   </div>
@@ -177,22 +201,22 @@ body {
   .navigation {
     padding: 0.5rem 0.8rem;
   }
-  
+
   .nav-brand h1 {
     font-size: 1.1rem;
     margin-right: 1rem;
   }
-  
+
   .nav-menu {
     gap: 0.4rem;
   }
-  
+
   .nav-button {
     padding: 0.4rem 0.8rem;
     font-size: 0.75rem;
     gap: 0.3rem;
   }
-  
+
   .nav-button svg {
     width: 14px;
     height: 14px;
@@ -203,17 +227,17 @@ body {
   .navigation {
     padding: 0.4rem 0.6rem;
   }
-  
+
   .nav-brand h1 {
     font-size: 1rem;
     margin-right: 0.5rem;
   }
-  
+
   .nav-button {
     padding: 0.4rem 0.6rem;
     font-size: 0.7rem;
   }
-  
+
   .nav-button span {
     display: none;
   }
