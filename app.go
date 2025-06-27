@@ -217,12 +217,12 @@ func (a *App) GetConfig() *Config {
 func (a *App) SetWebhookURL(url string) error {
 	a.config.WebhookURL = url
 	err := a.configManager.SaveConfig(a.config)
-	
+
 	// Emit event to notify frontend of config changes
 	if err == nil {
 		runtime.EventsEmit(a.ctx, "config-updated")
 	}
-	
+
 	return err
 }
 
@@ -467,6 +467,14 @@ func (a *App) handleWatcherEvent(event fsnotify.Event) {
 		}
 
 		if a.isVideoFile(event.Name) {
+			// Skip compressed files to avoid processing loop
+			// When we send a file to Discord, it might create a "_compressed" version
+			// which would trigger another notification - we want to ignore these
+			if strings.Contains(filepath.Base(event.Name), "_compressed") {
+				logger.Info("Skipping compressed file: %s", event.Name)
+				return
+			}
+
 			logger.Info("New video file detected: %s", event.Name)
 			// Wait a bit for the file to be fully written
 			time.Sleep(time.Duration(a.config.CheckInterval) * time.Second)
@@ -739,12 +747,12 @@ func (a *App) GetAppStatus() AppStatus {
 func (a *App) SaveConfig(config Config) error {
 	a.config = &config
 	err := a.configManager.SaveConfig(a.config)
-	
+
 	// Emit event to notify frontend of config changes
 	if err == nil {
 		runtime.EventsEmit(a.ctx, "config-updated")
 	}
-	
+
 	return err
 }
 
@@ -762,7 +770,7 @@ func (a *App) UpdateMonitorPath(path string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Emit event to notify frontend of config changes
 	runtime.EventsEmit(a.ctx, "config-updated")
 

@@ -26,7 +26,7 @@ const loadConfig = async () => {
     const configData = await GetConfig()
     config.value = configData
     isMedalTVActive.value = configData?.use_medaltv_path || false
-    
+
     // If currently on clips page but Medal TV is not active, switch to status
     if (currentPage.value === 'clips' && !isMedalTVActive.value) {
       currentPage.value = 'status'
@@ -39,7 +39,7 @@ const loadConfig = async () => {
 onMounted(() => {
   // Load config on startup
   loadConfig()
-  
+
   // Listen for app state changes
   EventsOn('app-minimized-to-tray', () => {
     console.log('App minimized to tray')
@@ -47,7 +47,7 @@ onMounted(() => {
   EventsOn('app-restored-from-tray', () => {
     console.log('App restored from tray')
   })
-  
+
   // Listen for config changes and reload
   EventsOn('config-updated', () => {
     loadConfig()
@@ -66,12 +66,8 @@ onMounted(() => {
           <Activity :size="16" />
           Status
         </button>
-        <button 
-          v-if="isMedalTVActive"
-          :class="{ active: currentPage === 'clips' }" 
-          @click="switchPage('clips')" 
-          class="nav-button"
-        >
+        <button v-if="isMedalTVActive" :class="{ active: currentPage === 'clips' }" @click="switchPage('clips')"
+          class="nav-button">
           <Film :size="16" />
           Clips
         </button>
