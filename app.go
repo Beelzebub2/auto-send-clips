@@ -609,8 +609,6 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 		return err
 	}
 
-
-
 	// Get file size for statistics
 	fileInfo, _ := os.Stat(finalPath)
 	fileSize := int64(0)
@@ -1326,8 +1324,6 @@ func (a *App) isMedalTVClip(filePath string) bool {
 	// Check if the file is within the Medal TV clip folder
 	return strings.HasPrefix(absFilePath, absMedalPath)
 }
-
-
 
 // GetMedalTVClips reads and returns all clips from Medal TV's clips.json file
 func (a *App) GetMedalTVClips() ([]ClipDisplayData, error) {

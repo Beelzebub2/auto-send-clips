@@ -24,7 +24,20 @@
         <div v-else class="clips-grid">
             <div v-for="clip in clips" :key="clip.uuid" class="clip-card">
                 <div class="clip-thumbnail">
-                    <img :src="getThumbnailSrc(clip)" :alt="clip.title" @error="onImageError" />
+                    <div class="thumbnail-container">
+                        <div class="thumbnail-placeholder" :class="{ 'loaded': imageStates[clip.uuid]?.loaded }">
+                            <div class="placeholder-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path
+                                        d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+                                </svg>
+                            </div>
+                            <div v-if="imageStates[clip.uuid]?.loading" class="thumbnail-spinner"></div>
+                        </div>
+                        <img :src="getThumbnailSrc(clip)" :alt="clip.title"
+                            :class="{ 'loaded': imageStates[clip.uuid]?.loaded, 'error': imageStates[clip.uuid]?.error }"
+                            @load="onImageLoad(clip.uuid)" @error="onImageError(clip.uuid)" />
+                    </div>
                     <div class="clip-duration" v-if="clip.duration">
                         {{ formatDuration(clip.duration) }}
                     </div>
@@ -56,6 +69,7 @@ const clips = ref([])
 const isLoading = ref(true)
 const error = ref('')
 const sendingClips = ref(new Set())
+const imageStates = ref({})
 
 const loadClips = async () => {
     isLoading.value = true
@@ -64,6 +78,16 @@ const loadClips = async () => {
     try {
         const clipsData = await GetMedalTVClips()
         clips.value = clipsData || []
+
+        // Initialize image states for each clip
+        imageStates.value = {}
+        clips.value.forEach(clip => {
+            imageStates.value[clip.uuid] = {
+                loading: true,
+                loaded: false,
+                error: false
+            }
+        })
     } catch (err) {
         error.value = err.message || 'Failed to load clips'
         console.error('Error loading clips:', err)
@@ -120,9 +144,20 @@ const getThumbnailSrc = (clip) => {
     return ''
 }
 
-const onImageError = (event) => {
-    // Hide broken images or show placeholder
-    event.target.style.display = 'none'
+const onImageLoad = (clipUUID) => {
+    if (imageStates.value[clipUUID]) {
+        imageStates.value[clipUUID].loading = false
+        imageStates.value[clipUUID].loaded = true
+        imageStates.value[clipUUID].error = false
+    }
+}
+
+const onImageError = (clipUUID) => {
+    if (imageStates.value[clipUUID]) {
+        imageStates.value[clipUUID].loading = false
+        imageStates.value[clipUUID].loaded = false
+        imageStates.value[clipUUID].error = true
+    }
 }
 
 onMounted(() => {
@@ -241,14 +276,82 @@ onMounted(() => {
     background: var(--bg-darkest);
 }
 
+.thumbnail-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.thumbnail-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.3s ease;
+    z-index: 1;
+    animation: placeholder-pulse 2s ease-in-out infinite;
+}
+
+@keyframes placeholder-pulse {
+
+    0%,
+    100% {
+        background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+    }
+
+    50% {
+        background: linear-gradient(135deg, #2f2f2f 0%, #1f1f1f 100%);
+    }
+}
+
+.thumbnail-placeholder.loaded {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.placeholder-icon {
+    width: 48px;
+    height: 48px;
+    color: #555;
+    margin-bottom: 8px;
+}
+
+.thumbnail-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid #333;
+    border-top: 2px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
 .clip-thumbnail img {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: var(--transition-smooth);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    opacity: 0;
+    z-index: 2;
 }
 
-.clip-card:hover .clip-thumbnail img {
+.clip-thumbnail img.loaded {
+    opacity: 1;
+}
+
+.clip-thumbnail img.error {
+    display: none;
+}
+
+.clip-card:hover .clip-thumbnail img.loaded {
     transform: scale(1.05);
 }
 
