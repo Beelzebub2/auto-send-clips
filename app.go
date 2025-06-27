@@ -609,18 +609,7 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 		return err
 	}
 
-	// Update Medal TV clips.json if this is a Medal TV clip and custom name is provided
-	if a.isMedalTVClip(filePath) {
-		titleToSet := customName
-		if titleToSet == "" {
-			titleToSet = "Untitled"
-		}
-		err = a.updateMedalTVClipTitle(filePath, titleToSet)
-		if err != nil {
-			logger.Warn("Failed to update Medal TV clip title: %v", err)
-			// Don't return error, just log it as this is not critical
-		}
-	}
+
 
 	// Get file size for statistics
 	fileInfo, _ := os.Stat(finalPath)
@@ -1338,104 +1327,7 @@ func (a *App) isMedalTVClip(filePath string) bool {
 	return strings.HasPrefix(absFilePath, absMedalPath)
 }
 
-// updateMedalTVClipTitle updates the contentTitle in Medal TV's clips.json file for a specific clip
-func (a *App) updateMedalTVClipTitle(filePath, customTitle string) error {
-	// Get Medal TV clips.json path
-	appDataPath := os.Getenv("APPDATA")
-	if appDataPath == "" {
-		return errors.New("APPDATA environment variable not found")
-	}
 
-	clipsJSONPath := filepath.Join(appDataPath, "Medal", "store", "clips.json")
-
-	// Check if file exists
-	if _, err := os.Stat(clipsJSONPath); os.IsNotExist(err) {
-		return errors.New("Medal TV clips.json file not found")
-	}
-
-	// Read the file
-	data, err := os.ReadFile(clipsJSONPath)
-	if err != nil {
-		return fmt.Errorf("failed to read clips.json: %v", err)
-	}
-
-	// Parse JSON as generic map to preserve structure
-	var clipsData map[string]interface{}
-	err = json.Unmarshal(data, &clipsData)
-	if err != nil {
-		return fmt.Errorf("failed to parse clips.json: %v", err)
-	}
-
-	// Get the clips array
-	clips, ok := clipsData["clips"].([]interface{})
-	if !ok {
-		return errors.New("clips array not found in clips.json")
-	}
-
-	// Normalize the file path for comparison
-	absFilePath, err := filepath.Abs(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to get absolute path: %v", err)
-	}
-
-	// Find the clip with matching localContentUrl and update its contentTitle
-	updated := false
-	for _, clip := range clips {
-		clipMap, ok := clip.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		content, ok := clipMap["Content"].(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		localContentURL, ok := content["localContentUrl"].(string)
-		if !ok {
-			continue
-		}
-
-		// Normalize the local content URL for comparison
-		absLocalURL, err := filepath.Abs(localContentURL)
-		if err != nil {
-			continue
-		}
-
-		// Check if this is the clip we're looking for
-		if absFilePath == absLocalURL {
-			// Update the content title
-			if customTitle != "" {
-				content["contentTitle"] = customTitle
-				content["hasTitle"] = true
-			} else {
-				content["contentTitle"] = "Untitled"
-				content["hasTitle"] = false
-			}
-			updated = true
-			logger.Info("Updated Medal TV clip title for %s to: %s", filepath.Base(filePath), customTitle)
-			break
-		}
-	}
-
-	if !updated {
-		logger.Warn("Could not find clip in clips.json for file: %s", filePath)
-		return nil // Don't treat this as an error, just log it
-	}
-
-	// Write the updated data back to the file
-	updatedData, err := json.MarshalIndent(clipsData, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal updated clips.json: %v", err)
-	}
-
-	err = os.WriteFile(clipsJSONPath, updatedData, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write updated clips.json: %v", err)
-	}
-
-	return nil
-}
 
 // GetMedalTVClips reads and returns all clips from Medal TV's clips.json file
 func (a *App) GetMedalTVClips() ([]ClipDisplayData, error) {
