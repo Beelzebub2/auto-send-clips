@@ -555,10 +555,23 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 		return errors.New("webhook URL not set")
 	}
 
+	// Emit initial progress
+	runtime.EventsEmit(a.ctx, "sendProgress", map[string]interface{}{
+		"stage":    "initializing",
+		"progress": 0.0,
+		"message":  "Starting file processing...",
+	})
+
 	// Check file size
 	_, err := os.Stat(filePath)
 	if err != nil {
 		logger.Error("error getting file info: %v", err)
+		runtime.EventsEmit(a.ctx, "sendProgress", map[string]interface{}{
+			"stage":    "error",
+			"progress": 0.0,
+			"message":  "Error getting file info",
+			"error":    err.Error(),
+		})
 		return errors.New("error getting file info")
 	}
 
@@ -566,10 +579,22 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 	var cleanup bool
 
 	if audioOnly {
+		runtime.EventsEmit(a.ctx, "sendProgress", map[string]interface{}{
+			"stage":    "extracting",
+			"progress": 0.2,
+			"message":  "Extracting audio from video...",
+		})
+		
 		// Extract audio from video
 		finalPath, err = a.extractAudio(filePath)
 		if err != nil {
 			logger.Error("error extracting audio: %v", err)
+			runtime.EventsEmit(a.ctx, "sendProgress", map[string]interface{}{
+				"stage":    "error",
+				"progress": 0.2,
+				"message":  "Error extracting audio",
+				"error":    err.Error(),
+			})
 			return errors.New("error extracting audio")
 		}
 		cleanup = true
@@ -582,20 +607,68 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 		finalPath = filePath
 	}
 
-	// Check final file size
+	// Check final file size and compress aggressively if needed
 	finalInfo, err := os.Stat(finalPath)
 	if err != nil {
 		logger.Error("error getting final file info: %v", err)
+		runtime.EventsEmit(a.ctx, "sendProgress", map[string]interface{}{
+			"stage":    "error",
+			"progress": 0.3,
+			"message":  "Error getting file info",
+			"error":    err.Error(),
+		})
 		return errors.New("error getting final file info")
 	}
 
-	if finalInfo.Size() > a.config.MaxFileSize*1024*1024 {
-		// Compress the file
+	maxSizeBytes := a.config.MaxFileSize * 1024 * 1024
+	if finalInfo.Size() > maxSizeBytes {
+		logger.Info("File size %d bytes exceeds limit of %d bytes, starting aggressive compression", finalInfo.Size(), maxSizeBytes)
+		
+		runtime.EventsEmit(a.ctx, "sendProgress", map[string]interface{}{
+			"stage":    "compressing",
+			"progress": 0.4,
+			"message":  "File too large, compressing...",
+		})
+		
+		// Compress the file aggressively
 		compressedPath, err := a.compressFile(finalPath, audioOnly)
 		if err != nil {
 			logger.Error("error compressing file: %v", err)
+			runtime.EventsEmit(a.ctx, "sendProgress", map[string]interface{}{
+				"stage":    "error",
+				"progress": 0.4,
+				"message":  "Error compressing file",
+				"error":    err.Error(),
+			})
 			return errors.New("error compressing file")
 		}
+		
+		// Verify compressed file size
+		compressedInfo, err := os.Stat(compressedPath)
+		if err != nil {
+			logger.Error("error getting compressed file info: %v", err)
+			os.Remove(compressedPath)
+			runtime.EventsEmit(a.ctx, "sendProgress", map[string]interface{}{
+				"stage":    "error",
+				"progress": 0.4,
+				"message":  "Error getting compressed file info",
+				"error":    err.Error(),
+			})
+			return errors.New("error getting compressed file info")
+		}
+		
+		if compressedInfo.Size() > maxSizeBytes {
+			logger.Error("compressed file still too large: %d bytes (limit: %d bytes)", compressedInfo.Size(), maxSizeBytes)
+			os.Remove(compressedPath)
+			runtime.EventsEmit(a.ctx, "sendProgress", map[string]interface{}{
+				"stage":    "error",
+				"progress": 0.4,
+				"message":  "Unable to compress file to required size",
+				"error":    fmt.Sprintf("Current: %d bytes, Required: %d bytes", compressedInfo.Size(), maxSizeBytes),
+			})
+			return fmt.Errorf("unable to compress file to required size. Current: %d bytes, Required: %d bytes", compressedInfo.Size(), maxSizeBytes)
+		}
+		
 		finalPath = compressedPath
 		cleanup = true
 		defer func() {
@@ -603,9 +676,25 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 				os.Remove(finalPath)
 			}
 		}()
-	} // Send to Discord
+		
+		logger.Info("File successfully compressed from %d bytes to %d bytes", finalInfo.Size(), compressedInfo.Size())
+	}
+	
+	// Send to Discord
+	runtime.EventsEmit(a.ctx, "sendProgress", map[string]interface{}{
+		"stage":    "uploading",
+		"progress": 0.8,
+		"message":  "Uploading to Discord...",
+	})
+	
 	err = a.sendFileToDiscord(finalPath, customName)
 	if err != nil {
+		runtime.EventsEmit(a.ctx, "sendProgress", map[string]interface{}{
+			"stage":    "error",
+			"progress": 0.8,
+			"message":  "Error uploading to Discord",
+			"error":    err.Error(),
+		})
 		return err
 	}
 
@@ -614,11 +703,21 @@ func (a *App) SendToDiscord(filePath, customName string, audioOnly bool) error {
 	fileSize := int64(0)
 	if fileInfo != nil {
 		fileSize = fileInfo.Size()
-	} // Increment clip count using ConfigManager
+	}
+	
+	// Increment clip count using ConfigManager
 	err = a.configManager.IncrementClipCount(a.config, fileSize)
 	if err != nil {
 		logger.Warn("Failed to update clip statistics: %v", err)
 	}
+
+	// Emit completion
+	runtime.EventsEmit(a.ctx, "sendProgress", map[string]interface{}{
+		"stage":      "complete",
+		"progress":   1.0,
+		"message":    "Successfully sent to Discord!",
+		"isComplete": true,
+	})
 
 	return nil
 }
@@ -1427,7 +1526,15 @@ func (a *App) SendClipToDiscord(clipUUID string) error {
 		return errors.New("clip file not found")
 	}
 
-	// Use existing SendToDiscord function with custom name
-	customName := fmt.Sprintf("%s_%d", targetClip.Title, targetClip.TimeCreated)
+	// Use existing SendToDiscord function with clean title
+	customName := targetClip.Title
+	// Clean up the title - remove any existing timestamp suffixes
+	if idx := strings.LastIndex(customName, "_"); idx > 0 {
+		// Check if everything after the last underscore is digits (timestamp)
+		suffix := customName[idx+1:]
+		if _, err := strconv.ParseInt(suffix, 10, 64); err == nil {
+			customName = customName[:idx]
+		}
+	}
 	return a.SendToDiscord(targetClip.FilePath, customName, false)
 }

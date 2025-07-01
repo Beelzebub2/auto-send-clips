@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { EventsOn, EventsOff, EventsEmit } from '../../wailsjs/runtime/runtime'
+import ProgressModal from './ProgressModal.vue'
 
 // Reactive data for notification
 const showNotification = ref(false)
@@ -13,17 +14,56 @@ const audioOnly = ref(false)
 const sending = ref(false)
 const debugMessage = ref('Initializing...')
 
+// Progress modal data
+const showProgress = ref(false)
+const progressData = ref({
+  title: 'Sending to Discord',
+  progress: 0,
+  stage: '',
+  message: '',
+  error: '',
+  isComplete: false
+})
+
 // Listen for video detection events
 onMounted(() => {
   debugMessage.value = 'Component mounted, registering event listeners'
   console.log('Notification component mounted, setting up event listener for newVideoDetected')
-    EventsOn('newVideoDetected', (data) => {
+  
+  EventsOn('newVideoDetected', (data) => {
     debugMessage.value = `Received newVideoDetected: ${data?.fileName || 'unknown'}`
     console.log('Notification: New video detected event received:', data)
-    if (data) {      videoData.value = data
+    if (data) {
+      videoData.value = data
       customName.value = '' // Leave blank for user to fill
       showNotification.value = true
       console.log('Showing in-app notification modal')
+    }
+  })
+  
+  // Listen for send progress events
+  EventsOn('sendProgress', (data) => {
+    console.log('Send progress:', data)
+    progressData.value = {
+      title: 'Sending to Discord',
+      progress: data.progress || 0,
+      stage: data.stage || '',
+      message: data.message || '',
+      error: data.error || '',
+      isComplete: data.isComplete || false
+    }
+  })
+  
+  // Listen for compression progress events
+  EventsOn('compressionProgress', (data) => {
+    console.log('Compression progress:', data)
+    progressData.value = {
+      title: 'Compressing Video',
+      progress: data.Progress || 0,
+      stage: data.Stage || '',
+      message: data.Message || '',
+      error: data.Error || '',
+      isComplete: data.IsComplete || false
     }
   })
   
@@ -42,6 +82,8 @@ onMounted(() => {
 onUnmounted(() => {
   console.log('Notification component unmounting, removing event listeners')
   EventsOff('newVideoDetected')
+  EventsOff('sendProgress')
+  EventsOff('compressionProgress')
   EventsOff('app-restored-from-tray')
 })
 
@@ -51,11 +93,32 @@ function closeNotification() {
   audioOnly.value = false
 }
 
+function closeProgress() {
+  showProgress.value = false
+  progressData.value = {
+    title: 'Processing',
+    progress: 0,
+    stage: '',
+    message: '',
+    error: '',
+    isComplete: false
+  }
+}
+
 async function sendToDiscord() {
   if (!videoData.value.filePath) return
   
   sending.value = true
-  try {    // Import the SendToDiscord method dynamically
+  
+  // Delay showing progress modal to prevent jump scare
+  setTimeout(() => {
+    if (sending.value) { // Only show if still sending
+      showProgress.value = true
+    }
+  }, 500)
+  
+  try {
+    // Import the SendToDiscord method dynamically
     const { SendToDiscord } = await import('../../wailsjs/go/main/App')
     await SendToDiscord(videoData.value.filePath, customName.value, audioOnly.value)
     
@@ -65,7 +128,13 @@ async function sendToDiscord() {
   } catch (error) {
     console.error('Error sending to Discord:', error)
     debugMessage.value = `Error: ${error.message || error}`
-    alert('Failed to send to Discord: ' + error)
+    
+    // Update progress with error
+    progressData.value = {
+      ...progressData.value,
+      error: error.message || error.toString(),
+      stage: 'error'
+    }
   } finally {
     sending.value = false
   }
@@ -122,6 +191,18 @@ async function sendToDiscord() {
         </div>
       </div>
     </div>
+    
+    <!-- Progress Modal -->
+    <ProgressModal 
+      :isVisible="showProgress"
+      :title="progressData.title"
+      :progress="progressData.progress"
+      :stage="progressData.stage"
+      :message="progressData.message"
+      :error="progressData.error"
+      :isComplete="progressData.isComplete"
+      @close="closeProgress"
+    />
   </div>
 </template>
 

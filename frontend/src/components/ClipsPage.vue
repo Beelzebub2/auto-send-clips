@@ -58,18 +58,91 @@
                 </div>
             </div>
         </div>
+        
+    <!-- Progress Modal -->
+    <ProgressModal 
+      :isVisible="showProgress"
+      :title="progressData.title"
+      :progress="progressData.progress"
+      :stage="progressData.stage"
+      :message="progressData.message"
+      :error="progressData.error"
+      :isComplete="progressData.isComplete"
+      @close="closeProgress"
+    />
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { GetMedalTVClips, SendClipToDiscord } from '../../wailsjs/go/main/App'
+import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
+import ProgressModal from './ProgressModal.vue'
 
 const clips = ref([])
 const isLoading = ref(true)
 const error = ref('')
 const sendingClips = ref(new Set())
 const imageStates = ref({})
+
+// Progress modal data
+const showProgress = ref(false)
+const progressData = ref({
+  title: 'Sending to Discord',
+  progress: 0,
+  stage: '',
+  message: '',
+  error: '',
+  isComplete: false
+})
+
+// Listen for progress events
+onMounted(() => {
+  // Listen for send progress events
+  EventsOn('sendProgress', (data) => {
+    console.log('Send progress:', data)
+    progressData.value = {
+      title: 'Sending to Discord',
+      progress: data.progress || 0,
+      stage: data.stage || '',
+      message: data.message || '',
+      error: data.error || '',
+      isComplete: data.isComplete || false
+    }
+  })
+  
+  // Listen for compression progress events
+  EventsOn('compressionProgress', (data) => {
+    console.log('Compression progress:', data)
+    progressData.value = {
+      title: 'Compressing Video',
+      progress: data.Progress || 0,
+      stage: data.Stage || '',
+      message: data.Message || '',
+      error: data.Error || '',
+      isComplete: data.IsComplete || false
+    }
+  })
+  
+  loadClips()
+})
+
+onUnmounted(() => {
+  EventsOff('sendProgress')
+  EventsOff('compressionProgress')
+})
+
+function closeProgress() {
+  showProgress.value = false
+  progressData.value = {
+    title: 'Processing',
+    progress: 0,
+    stage: '',
+    message: '',
+    error: '',
+    isComplete: false
+  }
+}
 
 const loadClips = async () => {
     isLoading.value = true
@@ -98,6 +171,13 @@ const loadClips = async () => {
 
 const sendToDiscord = async (clipUUID) => {
     sendingClips.value.add(clipUUID)
+    
+    // Delay showing progress modal to prevent jump scare
+    setTimeout(() => {
+        if (sendingClips.value.has(clipUUID)) { // Only show if still sending
+            showProgress.value = true
+        }
+    }, 500)
 
     try {
         await SendClipToDiscord(clipUUID)
@@ -105,7 +185,13 @@ const sendToDiscord = async (clipUUID) => {
         console.log('Clip sent successfully')
     } catch (err) {
         console.error('Error sending clip:', err)
-        alert(`Failed to send clip: ${err.message}`)
+        
+        // Update progress with error
+        progressData.value = {
+            ...progressData.value,
+            error: err.message || err.toString(),
+            stage: 'error'
+        }
     } finally {
         sendingClips.value.delete(clipUUID)
     }
